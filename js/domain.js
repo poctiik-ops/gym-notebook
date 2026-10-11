@@ -233,12 +233,21 @@
 
   class SessionError extends Error {}
 
-  function createSessionFromTemplate({ id, template, exercises, cycle, plannedDate, cycleWeek, now }) {
+  /**
+   * Чередование: у пункта шаблона может быть altExerciseId — его делают на каждом втором
+   * выполнении этой тренировки (2-е, 4-е…). occurrence — номер выполнения, с 1.
+   */
+  function resolveItemExerciseId(item, occurrence = 1) {
+    return item.altExerciseId && occurrence % 2 === 0 ? item.altExerciseId : item.exerciseId;
+  }
+
+  function createSessionFromTemplate({ id, template, exercises, cycle, plannedDate, cycleWeek, now, occurrence = 1 }) {
     const nowIso = now.toISOString();
     const lookup = (eid) => (exercises instanceof Map ? exercises.get(eid) : exercises[eid]);
     const list = template.items.map((item, order) => {
-      const ex = lookup(item.exerciseId);
-      if (!ex) throw new SessionError(`Упражнение ${item.exerciseId} не найдено`);
+      const exId = resolveItemExerciseId(item, occurrence);
+      const ex = lookup(exId);
+      if (!ex) throw new SessionError(`Упражнение ${exId} не найдено`);
       return {
         exerciseId: ex.id,
         templateItemId: item.id,
@@ -273,6 +282,7 @@
     });
     return {
       id,
+      occurrence,
       cycleId: cycle ? cycle.id : null,
       templateId: template.id,
       templateCode: template.code,
@@ -502,7 +512,7 @@
     CYCLE_WEEKS, CYCLE_LENGTH_DAYS, DELOAD_WEEK, TEMPLATE_CODES, buildDefaultSlots, templateTitle, isLightTemplate,
     getDayIndex, weekForDayIndex, getCycleEndDate, getCyclePosition, getPlannedWorkouts, getWorkoutForDate,
     getNextWorkout, buildCycleCalendar, getTodayPlan,
-    SessionError, createSessionFromTemplate, updateSetDraft, isSessionFullyDone, completeSet, uncompleteSet,
+    SessionError, createSessionFromTemplate, resolveItemExerciseId, updateSetDraft, isSessionFullyDone, completeSet, uncompleteSet,
     clearRestTimer, extendRestTimer, setExerciseCollapsed, finishSession, abandonSession,
     completedSets, isExerciseDone, exerciseVolume, sessionVolume, sessionSetCounts, sessionExerciseCounts,
     sessionDurationMs, findPreviousPerformance, previousSetAt,

@@ -356,7 +356,7 @@
             ${iconButton('chevronLeft', 'К экрану «Сегодня»', 'data-action="back"')}
             <div style="min-width:0">
               <p class="t">${esc(session.templateName)}</p>
-              <p class="m">${session.cycleWeek ? `Неделя ${session.cycleWeek} · ` : ''}${c.done} / ${c.total} подходов</p>
+              <p class="m">${session.cycleWeek ? `Неделя ${session.cycleWeek} · ` : ''}${c.done} / ${c.total} ${GN.plural(c.total, ['подход', 'подхода', 'подходов'])}</p>
             </div>
           </header>
           <div class="workout-progress">${progressBar(c.total ? c.done / c.total : 0, 'Выполнено подходов')}</div>

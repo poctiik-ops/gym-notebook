@@ -8,7 +8,7 @@
 (function (GN) {
   'use strict';
 
-  const SEED_VERSION = 3;
+  const SEED_VERSION = 4;
   const DEFAULT_SCHEME_ID = 'scheme-default';
 
   // Первые WARMUP_ITEMS упражнений каждой тренировки получают WARMUP_SETS разминочных подходов
@@ -39,7 +39,7 @@
     ['db-romanian-deadlift', 'Румынская тяга с гантелями', 'Бицепс бедра и ягодицы', 'hamstrings', 180, 'Таз назад, колени чуть согнуты, гантели скользят по бёдрам.', 'reps'],
     ['barbell-curl', 'Сгибание рук с грифом стоя', 'Бицепс', 'arms', 120, 'Локти прижаты, без раскачки корпусом.', 'reps'],
     ['db-hammer-curl', 'Молотки с гантелями стоя', 'Бицепс и предплечья', 'arms', 120, 'Нейтральный хват, локти неподвижны.', 'reps'],
-    ['incline-db-curl', 'Сгибание гантелей на наклонной скамье', 'Бицепс', 'arms', 120, 'Руки свисают за корпус, полное разгибание внизу.', 'reps'],
+    ['incline-db-curl', 'Сгибание рук с гантелями на наклонной скамье', 'Бицепс', 'arms', 120, 'Руки свисают за корпус, полное разгибание внизу.', 'reps'],
     ['db-spider-curl', 'Spider Curl с гантелями', 'Бицепс', 'arms', 120, 'Грудью на наклонной скамье, руки вертикально, пауза наверху.', 'reps'],
     ['straight-bar-pushdown', 'Разгибание рук вниз с прямой рукоятью', 'Трицепс', 'arms', 120, 'Локти у корпуса, полное разгибание внизу.', 'reps'],
     ['ez-skull-crusher', 'Французский жим с EZ-грифом', 'Трицепс', 'arms', 120, 'Двигаются только предплечья, локти смотрят вверх.', 'reps'],
@@ -48,6 +48,10 @@
     ['machine-crunch', 'Машинные скручивания', 'Пресс', 'core', 90, 'Скручивайтесь грудью к тазу, без рывка.', 'reps'],
     ['hanging-knee-raise', 'Подъём коленей в висе', 'Пресс', 'core', 90, 'Без раскачки, подкручивайте таз вверху.', 'reps'],
     ['weighted-side-plank', 'Боковая планка с весом', 'Косые мышцы пресса', 'core', 60, 'Таз высоко, корпус одной линией. Вес — на бедре.', 'seconds', 'side'],
+    ['neutral-pulldown', 'Верхняя тяга нейтральным хватом', 'Широчайшие', 'back', 180, 'Узкая нейтральная рукоять, тяните к верху груди, локти вдоль корпуса.', 'reps'],
+    ['seated-db-press', 'Жим гантелей сидя', 'Передняя и средняя дельта', 'shoulders', 180, 'Спинка почти вертикально, опускайте гантели до уровня ушей, без прогиба в пояснице.', 'reps'],
+    ['incline-prone-raise', 'Махи гантелями лёжа грудью на наклонной скамье', 'Задняя и средняя дельта', 'shoulders', 120, 'Грудью на скамье под 30–45°, разводите руки в стороны локтями, без рывка.', 'reps'],
+    ['abs', 'Пресс', 'Пресс', 'core', 90, 'Любое упражнение на пресс: скручивания, подъём ног или коленей. Медленно, без рывков.', 'reps'],
     ['ab-wheel', 'Ролик для пресса', 'Пресс', 'core', 90, 'Поясница не прогибается, катитесь настолько, насколько держите корпус.', 'reps'],
   ];
 
@@ -88,74 +92,95 @@
     'hanging-knee-raise': [['abs'], ['obliques', 'forearms'], 'Турник'],
     'weighted-side-plank': [['obliques'], ['abs', 'midDelts'], 'Блин'],
     'ab-wheel': [['abs'], ['obliques', 'lats'], 'Ролик'],
+    'neutral-pulldown': [['lats'], ['biceps', 'rearDelts'], 'Блок'],
+    'seated-db-press': [['frontDelts', 'midDelts'], ['triceps', 'upperChest'], 'Гантели'],
+    'incline-prone-raise': [['rearDelts', 'midDelts'], ['traps'], 'Гантели'],
+    'abs': [['abs'], ['obliques'], 'Пресс'],
   };
 
-  // [упражнение, подходы, повторы от, повторы до, отдых от (с), отдых до (с)]
+  /** Отдых по упражнению: [от, до] в секундах. Таймер считает по верхней границе. */
+  const REST = {
+    'one-arm-lat-pulldown': [180, 180], 'wide-neutral-pulldown': [180, 180], 'neutral-pulldown': [180, 180],
+    'one-arm-cable-row-hip': [180, 180], 'one-arm-db-row': [180, 180], 'cable-pullover': [120, 180],
+    'smith-incline-press': [180, 180], 'incline-db-press': [180, 180], 'db-squeeze-press': [180, 180],
+    'cable-crossover-mid': [120, 180], 'seated-db-press': [120, 180],
+    'leg-extension': [120, 180], 'leg-press': [180, 180], 'hack-squat': [180, 180], 'db-romanian-deadlift': [180, 180],
+    'hip-adduction': [120, 120], 'cable-lateral-raise': [120, 120], 'db-lateral-raise': [120, 120],
+    'reverse-pec-deck': [120, 120], 'incline-prone-raise': [120, 120], 'wide-upright-row': [120, 120],
+    'smith-shrug': [120, 120], 'db-shrug': [120, 120], 'barbell-curl': [120, 120], 'db-hammer-curl': [120, 120],
+    'incline-db-curl': [120, 120], 'db-spider-curl': [120, 120], 'straight-bar-pushdown': [120, 120],
+    'ez-skull-crusher': [120, 120], 'one-arm-d-pushdown': [120, 120], 'smith-close-press': [120, 180],
+    'abs': [60, 90],
+  };
+
+  // [упражнение, подходы, повторы от, повторы до, { alt: упражнение на каждом 2-м выполнении }]
   const TEMPLATES = {
-    // Широчайшие + средняя дельта + квадрицепс
     A: [
-      ['one-arm-lat-pulldown', 3, 6, 8, 180, 180],
-      ['smith-incline-press', 3, 6, 8, 180, 180],
-      ['leg-extension', 3, 10, 12, 120, 180],
-      ['cable-lateral-raise', 3, 10, 15, 120, 120],
-      ['barbell-curl', 2, 8, 10, 120, 120],
-      ['straight-bar-pushdown', 2, 8, 12, 120, 120],
-      ['machine-crunch', 3, 10, 15, 60, 90],
+      ['one-arm-lat-pulldown', 3, 6, 8],
+      ['smith-incline-press', 3, 6, 8],
+      ['leg-extension', 3, 10, 12],
+      ['cable-lateral-raise', 3, 10, 15],
+      ['smith-shrug', 2, 8, 12],
+      ['barbell-curl', 2, 8, 10],
+      ['straight-bar-pushdown', 2, 8, 12],
+      ['abs', 3, 10, 10],
     ],
-    // Тяжёлый день спины, без груди
     B: [
-      ['wide-neutral-pulldown', 3, 6, 8, 180, 180],
-      ['one-arm-cable-row-hip', 3, 8, 10, 180, 180],
-      ['db-romanian-deadlift', 3, 8, 10, 180, 180],
-      ['smith-shrug', 3, 8, 12, 120, 120],
-      ['db-hammer-curl', 2, 8, 10, 120, 120],
-      ['ez-skull-crusher', 2, 8, 10, 120, 120],
-      ['hanging-knee-raise', 3, 8, 12, 60, 90],
+      ['wide-neutral-pulldown', 3, 6, 8],
+      ['cable-crossover-mid', 3, 8, 12],
+      ['db-romanian-deadlift', 3, 8, 10],
+      ['db-lateral-raise', 3, 10, 15],
+      ['db-shrug', 2, 10, 12],
+      ['db-hammer-curl', 2, 8, 10],
+      ['ez-skull-crusher', 2, 8, 10],
+      ['abs', 3, 10, 10],
     ],
-    // Визуальная ширина
     C: [
-      ['incline-db-press', 3, 6, 8, 180, 180],
-      ['one-arm-db-row', 3, 8, 10, 180, 180],
-      ['leg-press', 3, 10, 12, 180, 180],
-      ['db-lateral-raise', 3, 10, 15, 120, 120],
-      ['incline-db-curl', 2, 8, 10, 120, 120],
-      ['smith-close-press', 2, 6, 8, 120, 180],
-      ['weighted-side-plank', 3, 30, 45, 60, 60],
+      ['one-arm-db-row', 3, 8, 10],
+      ['incline-db-press', 3, 6, 8],
+      ['leg-press', 3, 10, 12],
+      ['seated-db-press', 3, 8, 10],
+      ['wide-upright-row', 2, 8, 12],
+      ['incline-db-curl', 2, 8, 10],
+      ['smith-close-press', 2, 6, 8],
+      ['abs', 3, 10, 10],
     ],
     D: [
-      ['cable-pullover', 3, 8, 12, 120, 180],
-      ['db-squeeze-press', 3, 8, 10, 180, 180],
-      ['hip-adduction', 3, 10, 15, 120, 120],
-      ['reverse-pec-deck', 3, 10, 15, 120, 120],
-      ['db-spider-curl', 2, 8, 12, 120, 120],
-      ['one-arm-d-pushdown', 2, 10, 12, 120, 120],
-      ['ab-wheel', 3, 6, 12, 60, 90],
+      ['cable-pullover', 3, 8, 12],
+      ['db-squeeze-press', 3, 8, 10],
+      ['hip-adduction', 3, 10, 15],
+      // На втором выполнении Г вместо Reverse Pec Deck — махи лёжа на наклонной скамье
+      ['reverse-pec-deck', 3, 10, 15, { alt: 'incline-prone-raise' }],
+      ['smith-shrug', 2, 8, 12],
+      ['db-spider-curl', 2, 8, 12],
+      ['one-arm-d-pushdown', 2, 10, 12],
+      ['abs', 3, 10, 10],
     ],
-    // Второй чистый день спины
     E: [
-      ['one-arm-lat-pulldown', 3, 8, 10, 180, 180],
-      ['one-arm-cable-row-hip', 3, 8, 10, 180, 180],
-      ['hack-squat', 3, 8, 10, 180, 180],
-      ['wide-upright-row', 3, 8, 12, 120, 120],
-      ['barbell-curl', 2, 8, 10, 120, 120],
-      ['ez-skull-crusher', 2, 8, 10, 120, 120],
-      ['hanging-knee-raise', 3, 8, 12, 60, 90],
+      ['one-arm-cable-row-hip', 3, 8, 10],
+      ['smith-incline-press', 3, 8, 10],
+      ['hack-squat', 3, 8, 10],
+      ['incline-prone-raise', 3, 10, 15],
+      ['db-shrug', 2, 10, 12],
+      ['barbell-curl', 2, 8, 10],
+      ['ez-skull-crusher', 2, 8, 10],
+      ['abs', 3, 10, 10],
     ],
     F: [
-      ['cable-crossover-mid', 3, 8, 12, 120, 180],
-      ['one-arm-db-row', 3, 8, 10, 180, 180],
-      ['leg-extension', 3, 10, 12, 120, 180],
-      ['db-shrug', 3, 10, 12, 120, 120],
-      ['db-hammer-curl', 2, 8, 10, 120, 120],
-      ['straight-bar-pushdown', 2, 8, 12, 120, 120],
-      ['machine-crunch', 3, 10, 15, 60, 90],
+      ['one-arm-lat-pulldown', 3, 8, 10],
+      ['cable-crossover-mid', 3, 8, 12],
+      ['leg-extension', 3, 10, 12],
+      ['cable-lateral-raise', 3, 10, 15],
+      ['wide-upright-row', 2, 8, 12],
+      ['db-hammer-curl', 2, 8, 10],
+      ['straight-bar-pushdown', 2, 8, 12],
+      ['abs', 3, 10, 10],
     ],
+    // Разгрузочная неделя: всё 4×15, без разминки
+    LA: ['neutral-pulldown', 'smith-incline-press', 'leg-extension', 'cable-lateral-raise', 'smith-shrug', 'barbell-curl', 'straight-bar-pushdown', 'abs'].map((id) => [id, 4, 15, 15]),
+    LB: ['one-arm-lat-pulldown', 'db-squeeze-press', 'leg-press', 'db-lateral-raise', 'db-shrug', 'db-hammer-curl', 'ez-skull-crusher', 'abs'].map((id) => [id, 4, 15, 15]),
   };
-  // Разгрузочная неделя: упражнения А и Б, по 4 рабочих подхода, без разминки
-  const LIGHT_SETS = 4;
   const NO_WARMUP = new Set(['LA', 'LB']);
-  TEMPLATES.LA = TEMPLATES.A.map(([id, , min, max, rmin, rmax]) => [id, LIGHT_SETS, min, max, rmin, rmax]);
-  TEMPLATES.LB = TEMPLATES.B.map(([id, , min, max, rmin, rmax]) => [id, LIGHT_SETS, min, max, rmin, rmax]);
 
   function buildSeed(now) {
     const ts = now.toISOString();
@@ -183,9 +208,12 @@
       id: `tpl-${code}`,
       code,
       name: GN.templateTitle(code),
-      items: TEMPLATES[code].map(([exId, sets, repMin, repMax, restMin, restMax], i) => {
+      items: TEMPLATES[code].map(([exId, sets, repMin, repMax, opts], i) => {
         const exerciseId = `ex-${exId}`;
         if (!known.has(exerciseId)) throw new Error(`Seed: нет упражнения ${exerciseId}`);
+        const altExerciseId = opts && opts.alt ? `ex-${opts.alt}` : null;
+        if (altExerciseId && !known.has(altExerciseId)) throw new Error(`Seed: нет упражнения ${altExerciseId}`);
+        const [restMin, restMax] = REST[exId] || [120, 120];
         return {
           id: `tpl-${code}-${i + 1}`,
           exerciseId,
@@ -195,6 +223,7 @@
           repMax,
           restSeconds: restMax, // таймер — по верхней границе
           restMinSeconds: restMin < restMax ? restMin : null,
+          altExerciseId,
         };
       }),
       ...meta,
@@ -224,6 +253,7 @@
     'ex-db-spider-curl': 6, 'ex-straight-bar-pushdown': 15, 'ex-ez-skull-crusher': 15, 'ex-smith-close-press': 25,
     'ex-one-arm-d-pushdown': 7.5, 'ex-machine-crunch': 25, 'ex-hanging-knee-raise': null,
     'ex-weighted-side-plank': 5, 'ex-ab-wheel': null,
+    'ex-neutral-pulldown': 40, 'ex-seated-db-press': 12, 'ex-incline-prone-raise': 5, 'ex-abs': null,
   };
 
   const round25 = (n) => Math.round(n / 2.5) * 2.5;
@@ -242,6 +272,7 @@
     const exercises = new Map(seed.exercises.map((e) => [e.id, e]));
     const todayIso = GN.toISODate(today);
     const occurrences = new Map();
+    const templateRuns = new Map();
     const sessions = [];
 
     for (const planned of GN.getPlannedWorkouts(startDate, seed.scheme)) {
@@ -256,6 +287,7 @@
         plannedDate: planned.date,
         cycleWeek: planned.week,
         now: started,
+        occurrence: (templateRuns.set(planned.templateCode, (templateRuns.get(planned.templateCode) || 0) + 1), templateRuns.get(planned.templateCode)),
       });
       let minute = 3;
       s.exercises.forEach((ex, ei) => {

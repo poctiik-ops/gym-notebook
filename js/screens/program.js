@@ -123,11 +123,13 @@
         const rows = template.items
           .map((item, i) => {
             const ex = exercises.get(item.exerciseId);
+            const alt = item.altExerciseId ? exercises.get(item.altExerciseId) : null;
             return `<li class="tpl-row">${exerciseImage(ex ? ex.image : null, { compact: true })}
               <div style="min-width:0">
                 <p class="n"><span class="i">${i + 1}</span>${esc(ex ? ex.name : 'Неизвестное упражнение')}</p>
                 <p class="m">${item.warmupSets ? `${item.warmupSets} разм. + ` : ''}${item.sets} × ${GN.formatRepRange(item.repMin, item.repMax)}${ex && ex.resultType === 'seconds' ? ' с' : ''}${ex && ex.perSide ? ` ${GN.perSideLabel(ex.perSide)}` : ''} · отдых ${GN.formatRest(item.restSeconds, item.restMinSeconds)}</p>
                 ${ex ? `<p class="g">${esc(ex.muscleGroup)}</p>` : ''}
+                ${alt ? `<p class="alt-note">На 2-м, 4-м… выполнении — ${esc(alt.name)}</p>` : ''}
               </div></li>`;
           })
           .join('');
@@ -220,7 +222,8 @@
               <div class="edit-head">
                 <span class="edit-index">${idx + 1}</span>
                 <div style="min-width:0"><p style="font-weight:600">${esc(ex ? ex.name : 'Неизвестное упражнение')}</p>
-                <p class="muted" style="font-size:14px">${esc(ex ? ex.muscleGroup : '')}</p></div>
+                <p class="muted" style="font-size:14px">${esc(ex ? ex.muscleGroup : '')}</p>
+                ${item.altExerciseId && byId.get(item.altExerciseId) ? `<p class="alt-note">Чередуется с: ${esc(byId.get(item.altExerciseId).name)}</p>` : ''}</div>
               </div>
               <div class="edit-grid">
                 ${stepper({ label: 'Разминка', value: item.warmupSets || 0, min: 0, max: 5, action: 'step', attrs: `${a} data-key="warmupSets" data-step="1"` })}

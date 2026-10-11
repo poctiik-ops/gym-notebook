@@ -1776,3 +1776,13 @@ body.full .nav {
   text-transform: uppercase;
   color: var(--text-2);
 }
+
+.alt-note {
+  margin-top: 4px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent-soft-ink);
+  font-size: 13px;
+  font-weight: 600;
+}

@@ -162,6 +162,12 @@
       return true;
     }
 
+    /** Номер следующего выполнения тренировки в текущем цикле (для чередования упражнений). */
+    async function nextOccurrence(templateId, cycle) {
+      const pool = cycle ? await repos.sessions.listByCycle(cycle.id) : await repos.sessions.listCompleted();
+      return pool.filter((s) => s.templateId === templateId && s.status === 'completed').length + 1;
+    }
+
     async function exerciseMap() {
       return new Map((await repos.exercises.list()).map((e) => [e.id, e]));
     }
@@ -169,6 +175,10 @@
     return {
       ensureSeeded,
       exerciseMap,
+      nextOccurrence: async (code) => {
+        const t = await repos.templates.getByCode(code);
+        return t ? nextOccurrence(t.id, (await repos.cycles.getActive()) || null) : 1;
+      },
 
       // ── Цикл ──
       async getActiveCycleWithScheme() {
@@ -243,6 +253,7 @@
           plannedDate: plannedDate || GN.toISODate(now),
           cycleWeek,
           now,
+          occurrence: await nextOccurrence(template.id, cycle),
         });
         await repos.sessions.put(session);
         return session;

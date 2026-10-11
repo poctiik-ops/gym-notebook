@@ -19,23 +19,23 @@
     </section>`;
   }
 
-  function templatePreview(template, exercises) {
+  function templatePreview(template, exercises, occurrence = 1) {
     return `<ol class="ex-list">${template.items
       .map((item) => {
-        const ex = exercises.get(item.exerciseId);
+        const ex = exercises.get(GN.resolveItemExerciseId(item, occurrence));
         const warm = item.warmupSets ? `<span class="warm-tag">+${item.warmupSets} разм.</span> ` : '';
         return `<li><span>${esc(ex ? ex.name : 'Упражнение')}</span><span class="meta">${warm}${item.sets} × ${GN.formatRepRange(item.repMin, item.repMax)}${ex && ex.resultType === 'seconds' ? ' с' : ''}</span></li>`;
       })
       .join('')}</ol>`;
   }
 
-  function workoutCard(template, exercises, actionHtml) {
+  function workoutCard(template, exercises, actionHtml, occurrence = 1) {
     const sets = template.items.reduce((s, i) => s + i.sets, 0);
     return `<section class="card" aria-label="${esc(template.name)}">
       <p class="eyebrow">Сегодня</p>
       <h2 class="display">${esc(template.name)}</h2>
       <p class="muted">${GN.exercisesLabel(template.items.length)} · ${sets} ${GN.plural(sets, ['подход', 'подхода', 'подходов'])}</p>
-      ${templatePreview(template, exercises)}
+      ${templatePreview(template, exercises, occurrence)}
       ${actionHtml}
     </section>`;
   }
@@ -167,6 +167,7 @@
                   block: true,
                   attrs: `data-action="start" data-code="${code}" data-date="${plan.planned.date}" ${inProgress ? 'disabled' : ''}`,
                 }),
+                await services.nextOccurrence(code),
               );
             }
             break;

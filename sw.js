@@ -3,7 +3,7 @@
  * При изменении любого файла увеличьте VERSION: телефон скачает новую версию в фоне
  * и применит её сам (см. registerServiceWorker в js/app.js).
  */
-const VERSION = 'v3';
+const VERSION = 'v4';
 const CACHE = `gym-notebook-${VERSION}`;
 
 const ASSETS = [
@@ -22,7 +22,7 @@ const ASSETS = [
   './js/screens/program.js',
   './js/screens/other.js',
   './js/app.js',
-  './icons/favicon.svg',
+  './icons/favicon-64.png',
   './icons/apple-touch-icon.png',
   './icons/pwa-192x192.png',
   './icons/pwa-512x512.png',
