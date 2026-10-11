@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Тесты — Тренировочный блокнот</title>
+    <style>
+      body { margin: 0; padding: 24px 20px 48px; background: #f4f3ef; color: #15171a; font: 16px/1.45 -apple-system, 'Segoe UI', system-ui, sans-serif; }
+      h1 { margin: 0 0 4px; font-size: 28px; letter-spacing: -0.02em; }
+      #summary { margin-bottom: 20px; font-size: 18px; font-weight: 600; }
+      #summary.ok { color: #1d6a56; }
+      #summary.fail { color: #9c3a2b; }
+      section { margin-bottom: 12px; padding: 16px; border-radius: 16px; background: #fff; }
+      h2 { margin: 0 0 8px; font-size: 17px; }
+      ul { margin: 0; padding: 0; list-style: none; }
+      li { padding: 4px 0; }
+      .err { display: block; margin: 2px 0 0 26px; color: #9c3a2b; font-size: 14px; }
+    </style>
+  </head>
+  <body>
+    <h1>Тесты</h1>
+    <p id="summary">Выполняются…</p>
+    <div id="results"></div>
+
+    <script src="js/domain.js"></script>
+    <script src="js/seed.js"></script>
+    <script src="js/db.js"></script>
+    <script src="tests/runner.js"></script>
+    <script src="tests/domain.test.js"></script>
+    <script src="tests/storage.test.js"></script>
+    <script>
+      const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+      runTests({
+        suite(name, results) {
+          const items = results
+            .map((r) => `<li>${r.ok ? '✅' : '❌'} ${esc(r.name)}${r.ok ? '' : `<span class="err">${esc(r.error)}</span>`}</li>`)
+            .join('');
+          document.getElementById('results').insertAdjacentHTML('beforeend', `<section><h2>${esc(name)}</h2><ul>${items}</ul></section>`);
+        },
+        done(passed, failed) {
+          const el = document.getElementById('summary');
+          el.textContent = failed ? `Провалено: ${failed} из ${passed + failed}` : `Все тесты пройдены: ${passed}`;
+          el.className = failed ? 'fail' : 'ok';
+          window.__testResult = { passed, failed };
+        },
+      });
+    </script>
+  </body>
+</html>
