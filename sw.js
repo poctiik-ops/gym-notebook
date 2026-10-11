@@ -3,7 +3,7 @@
  * При изменении любого файла увеличьте VERSION: телефон скачает новую версию в фоне
  * и применит её сам (см. registerServiceWorker в js/app.js).
  */
-const VERSION = 'v4';
+const VERSION = 'v5';
 const CACHE = `gym-notebook-${VERSION}`;
 
 const ASSETS = [

@@ -42,7 +42,6 @@
 
   function restCard(next) {
     return `<section class="card">
-      <p class="eyebrow">Сегодня</p>
       <h2 class="display">Сегодня отдых</h2>
       ${
         next

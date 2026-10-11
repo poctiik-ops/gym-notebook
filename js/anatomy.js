@@ -121,17 +121,17 @@
       secondary.size ? `; помогают: ${[...secondary].map((m) => NAMES[m]).join(', ')}` : ''
     }`;
     const defs = `<defs>
-      <linearGradient id="${id}p" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a8a6f"/><stop offset="1" stop-color="#155445"/></linearGradient>
+      <linearGradient id="${id}p" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--an-primary-1,#3395ff)"/><stop offset="1" style="stop-color:var(--an-primary-2,#0059c7)"/></linearGradient>
     </defs>`;
     const style = `<style>
-      #${id} .ab{fill:#fbfaf7;stroke:#bdb8ad;stroke-width:1.1;stroke-linejoin:round}
-      #${id} .af{fill:rgba(20,22,26,.07)}
+      #${id} .ab{fill:var(--an-body,#fff);stroke:var(--an-body-stroke,#c7c7cc);stroke-width:1.1;stroke-linejoin:round}
+      #${id} .af{fill:var(--line,rgba(0,0,0,.08))}
       #${id} .am{stroke-width:.8;stroke-linejoin:round}
-      #${id} .am.ai{fill:#ece9e2;stroke:#d6d1c6}
-      #${id} .am.as{fill:#a9d2c3;stroke:#6fae97}
-      #${id} .am.ap{fill:url(#${id}p);stroke:#0f3f33}
-      #${id} .aseam{stroke:#d6d1c6;stroke-width:.8;fill:none}
-      #${id} .acap{font:600 9px -apple-system,'Segoe UI',system-ui,sans-serif;fill:#8a8e95;letter-spacing:.08em}
+      #${id} .am.ai{fill:var(--an-idle,#e9e9ee);stroke:var(--an-idle-stroke,#d1d1d6)}
+      #${id} .am.as{fill:var(--an-secondary,#9ecbff);stroke:var(--an-secondary-stroke,#5aa5ff)}
+      #${id} .am.ap{fill:url(#${id}p);stroke:var(--an-primary-stroke,#00419a)}
+      #${id} .aseam{stroke:var(--an-idle-stroke,#d1d1d6);stroke-width:.8;fill:none}
+      #${id} .acap{font:600 9px -apple-system,'Segoe UI',system-ui,sans-serif;fill:var(--an-cap,#8e8e93);letter-spacing:.06em}
     </style>`;
 
     if (compact) {
