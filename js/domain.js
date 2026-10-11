@@ -114,7 +114,8 @@
   }
 
   /** «каждой рукой» / «на каждую сторону» */
-  const perSideLabel = (perSide) => (perSide === 'arm' ? 'каждой рукой' : perSide === 'side' ? 'на каждую сторону' : '');
+  const perSideLabel = (perSide) =>
+    perSide === 'arm' ? 'каждой рукой' : perSide === 'leg' ? 'каждой ногой' : perSide === 'side' ? 'на каждую сторону' : '';
 
   const formatVolume = (kg) => `${new Intl.NumberFormat('ru-RU').format(Math.round(kg))} кг`;
 
@@ -123,7 +124,8 @@
   const CYCLE_WEEKS = 8;
   const CYCLE_LENGTH_DAYS = 56;
   const DELOAD_WEEK = 8;
-  const TEMPLATE_CODES = ['A', 'B', 'C', 'D', 'E', 'F', 'LA', 'LB'];
+  // A–F, LA, LB — новый цикл; O1–O6, OLA, OLB — текущий (старый) цикл до 1 ноября
+  const TEMPLATE_CODES = ['O1', 'O2', 'O3', 'O4', 'O5', 'O6', 'OLA', 'OLB', 'A', 'B', 'C', 'D', 'E', 'F', 'LA', 'LB'];
 
   /** Недели 1,3,5,7 — A/B/C (пн/ср/пт), 2,4,6 — D/E/F, неделя 8 — Light A (вт), Light B (чт). */
   function buildDefaultSlots() {
@@ -138,16 +140,21 @@
   }
 
   // Внутренние коды A–F, на экране — русские буквы, как в бумажном блокноте
-  const LETTERS = { A: 'А', B: 'Б', C: 'В', D: 'Г', E: 'Д', F: 'Е', LA: 'LА', LB: 'LБ' };
+  const LETTERS = {
+    A: 'А', B: 'Б', C: 'В', D: 'Г', E: 'Д', F: 'Е', LA: 'LА', LB: 'LБ',
+    O1: 'Д1', O2: 'Д3', O3: 'Д5', O4: 'Д8', O5: 'Д10', O6: 'Д12', OLA: 'Д.А', OLB: 'Д.Б',
+  };
   const templateLetter = (code) => LETTERS[code] || code;
 
   function templateTitle(code) {
     if (code === 'LA') return 'Light А';
     if (code === 'LB') return 'Light Б';
+    if (code === 'OLA') return 'Light Д.А';
+    if (code === 'OLB') return 'Light Д.Б';
     return `Тренировка ${templateLetter(code)}`;
   }
 
-  const isLightTemplate = (code) => code === 'LA' || code === 'LB';
+  const isLightTemplate = (code) => code === 'LA' || code === 'LB' || code === 'OLA' || code === 'OLB';
 
   // ── Цикл ────────────────────────────────────────────────
 
@@ -424,15 +431,19 @@
    * 2) иначе — последнее выполнение вообще.
    * Только завершённые тренировки, где у упражнения есть выполненные подходы.
    */
-  function findPreviousPerformance(sessions, exerciseId, templateId, excludeSessionId) {
+  /** Порядок тренировок: по дате тренировки, затем по моменту завершения (важно для записи задним числом). */
+  const sessionOrderKey = (s) => `${s.plannedDate}|${s.finishedAt || ''}`;
+
+  function findPreviousPerformance(sessions, exerciseId, templateId, excludeSessionId, beforeDate) {
     const candidates = sessions
       .filter((s) => s.status === 'completed' && s.finishedAt && s.id !== excludeSessionId)
+      .filter((s) => !beforeDate || s.plannedDate <= beforeDate)
       .map((s) => {
         const ex = s.exercises.find((e) => e.exerciseId === exerciseId && (completedSets(e).length > 0 || completedWarmups(e).length > 0));
         return ex ? { session: s, exercise: ex } : null;
       })
       .filter(Boolean)
-      .sort((a, b) => Date.parse(b.session.finishedAt) - Date.parse(a.session.finishedAt));
+      .sort((a, b) => sessionOrderKey(b.session).localeCompare(sessionOrderKey(a.session)));
 
     const match = candidates.find((c) => c.session.templateId === templateId) || candidates[0];
     if (!match) return null;
@@ -512,7 +523,7 @@
     CYCLE_WEEKS, CYCLE_LENGTH_DAYS, DELOAD_WEEK, TEMPLATE_CODES, buildDefaultSlots, templateTitle, isLightTemplate,
     getDayIndex, weekForDayIndex, getCycleEndDate, getCyclePosition, getPlannedWorkouts, getWorkoutForDate,
     getNextWorkout, buildCycleCalendar, getTodayPlan,
-    SessionError, createSessionFromTemplate, resolveItemExerciseId, updateSetDraft, isSessionFullyDone, completeSet, uncompleteSet,
+    sessionOrderKey, SessionError, createSessionFromTemplate, resolveItemExerciseId, updateSetDraft, isSessionFullyDone, completeSet, uncompleteSet,
     clearRestTimer, extendRestTimer, setExerciseCollapsed, finishSession, abandonSession,
     completedSets, isExerciseDone, exerciseVolume, sessionVolume, sessionSetCounts, sessionExerciseCounts,
     sessionDurationMs, findPreviousPerformance, previousSetAt,

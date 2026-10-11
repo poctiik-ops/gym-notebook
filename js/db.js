@@ -51,7 +51,7 @@
   }
 
   const alive = (x) => x && !x.deletedAt;
-  const byFinishedDesc = (a, b) => String(b.finishedAt || '').localeCompare(String(a.finishedAt || ''));
+  const byFinishedDesc = (a, b) => GN.sessionOrderKey(b).localeCompare(GN.sessionOrderKey(a));
 
   function createRepositories(db) {
     const store = (name, mode = 'readonly') => db.transaction(name, mode).objectStore(name);
@@ -92,6 +92,9 @@
         get: (id) => get('schemes', id),
       },
       cycles: {
+        /** Все незавершённые циклы — текущий и запланированные. */
+        listOpen: async () =>
+          (await byIndex('cycles', 'status', 'active')).filter(alive).sort((a, b) => a.startDate.localeCompare(b.startDate)),
         getActive: async () => (await byIndex('cycles', 'status', 'active')).filter(alive)[0],
         get: (id) => get('cycles', id),
         put: (c) => putMany('cycles', [c]),
@@ -142,7 +145,20 @@
       return run;
     };
 
-    async function ensureSeeded() {
+    /**
+     * Текущий цикл — последний начавшийся к сегодняшнему дню; следующий — запланированный после него.
+     * Так старый цикл сам сменяется новым в день старта.
+     */
+    async function cyclesFor(today = clock.now()) {
+      const open = await repos.cycles.listOpen();
+      const todayIso = GN.toISODate(today);
+      const started = open.filter((c) => c.startDate <= todayIso);
+      const current = started.length ? started[started.length - 1] : open[0] || null;
+      const upcoming = current ? open.find((c) => c.startDate > current.startDate) || null : null;
+      return { current, upcoming };
+    }
+
+    async function ensureSeeded({ cycles = true } = {}) {
       const version = await repos.meta.get('seedVersion');
       if (version && version >= GN.SEED_VERSION) return false;
       const now = clock.now();
@@ -156,10 +172,29 @@
         ...retired.map((value) => ({ store: 'exercises', value })),
         ...seed.exercises.map((value) => ({ store: 'exercises', value })),
         ...seed.templates.map((value) => ({ store: 'templates', value })),
-        { store: 'schemes', value: seed.scheme },
+        ...seed.schemes.map((value) => ({ store: 'schemes', value })),
+        ...(cycles ? await personalCycles(seed, now) : []),
         { store: 'meta', value: { key: 'seedVersion', value: GN.SEED_VERSION } },
       ]);
       return true;
+    }
+
+    /**
+     * Личные циклы: текущий с 28 сентября и новый со 2 ноября. Создаются один раз;
+     * пробные циклы, начатые раньше вручную, закрываются (история остаётся).
+     */
+    async function personalCycles(seed, now) {
+      const ops = [];
+      const seededIds = new Set(seed.cycles.map((c) => c.id));
+      for (const c of seed.cycles) {
+        if (!(await repos.cycles.get(c.id))) ops.push({ store: 'cycles', value: c });
+      }
+      if (ops.length) {
+        for (const c of await repos.cycles.listOpen()) {
+          if (!seededIds.has(c.id)) ops.push({ store: 'cycles', value: { ...c, status: 'finished', updatedAt: now.toISOString() } });
+        }
+      }
+      return ops;
     }
 
     /** Номер следующего выполнения тренировки в текущем цикле (для чередования упражнений). */
@@ -177,30 +212,30 @@
       exerciseMap,
       nextOccurrence: async (code) => {
         const t = await repos.templates.getByCode(code);
-        return t ? nextOccurrence(t.id, (await repos.cycles.getActive()) || null) : 1;
+        return t ? nextOccurrence(t.id, (await cyclesFor()).current) : 1;
       },
 
       // ── Цикл ──
       async getActiveCycleWithScheme() {
-        const cycle = (await repos.cycles.getActive()) || null;
-        const scheme = cycle ? (await repos.schemes.get(cycle.schemeId)) || null : null;
-        return { cycle, scheme };
+        const { current, upcoming } = await cyclesFor();
+        const scheme = current ? (await repos.schemes.get(current.schemeId)) || null : null;
+        const upcomingScheme = upcoming ? (await repos.schemes.get(upcoming.schemeId)) || null : null;
+        return { cycle: current, scheme, upcoming, upcomingScheme };
       },
 
       async startCycle(startDate) {
         const ts = clock.now().toISOString();
-        const active = await repos.cycles.getActive();
         const cycle = {
           id: clock.uuid(),
           startDate,
-          schemeId: active ? active.schemeId : GN.DEFAULT_SCHEME_ID,
+          schemeId: GN.DEFAULT_SCHEME_ID,
           status: 'active',
           createdAt: ts,
           updatedAt: ts,
           deletedAt: null,
         };
         const ops = [{ store: 'cycles', value: cycle }];
-        if (active) ops.push({ store: 'cycles', value: { ...active, status: 'finished', updatedAt: ts } });
+        for (const c of await repos.cycles.listOpen()) ops.push({ store: 'cycles', value: { ...c, status: 'finished', updatedAt: ts } });
         await repos.writeBatch(ops);
         return cycle;
       },
@@ -238,11 +273,12 @@
         const template = await repos.templates.getByCode(code);
         if (!template) throw new GN.SessionError(`Тренировка ${code} не найдена`);
         const now = clock.now();
-        const cycle = (await repos.cycles.getActive()) || null;
+        const cycle = (await cyclesFor(plannedDate ? GN.fromISODate(plannedDate) : now)).current;
         const scheme = cycle ? await repos.schemes.get(cycle.schemeId) : null;
         let cycleWeek = null;
         if (cycle && scheme) {
-          const i = GN.getDayIndex(cycle.startDate, now);
+          // Неделя — по дате тренировки (её можно записать задним числом)
+          const i = GN.getDayIndex(cycle.startDate, GN.fromISODate(plannedDate || GN.toISODate(now)));
           if (i >= 0 && i < scheme.lengthDays) cycleWeek = GN.weekForDayIndex(i, scheme);
         }
         const session = GN.createSessionFromTemplate({
@@ -273,15 +309,15 @@
         });
       },
 
-      async getPreviousPerformance(exerciseId, templateId, excludeSessionId) {
+      async getPreviousPerformance(exerciseId, templateId, excludeSessionId, beforeDate) {
         const sessions = await repos.sessions.listCompletedWithExercise(exerciseId);
-        return GN.findPreviousPerformance(sessions, exerciseId, templateId, excludeSessionId);
+        return GN.findPreviousPerformance(sessions, exerciseId, templateId, excludeSessionId, beforeDate);
       },
 
       // ── Данные ──
       async loadDemo() {
         await repos.clearAll();
-        await ensureSeeded();
+        await ensureSeeded({ cycles: false });
         const seed = {
           exercises: await repos.exercises.list(),
           templates: await repos.templates.list(),

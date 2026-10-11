@@ -2418,3 +2418,55 @@ body {
 .ex-image.compact.muscles {
   background: var(--image-bg);
 }
+
+/* ═══════════ Два цикла ═══════════ */
+.cycle-name {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.upcoming summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  list-style: none;
+  cursor: pointer;
+  color: var(--text-3);
+}
+
+.upcoming summary::-webkit-details-marker {
+  display: none;
+}
+
+.upcoming summary .cycle-name {
+  margin-bottom: 2px;
+}
+
+.upcoming summary strong {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.upcoming[open] summary {
+  margin-bottom: 16px;
+}
+
+.upcoming[open] summary svg {
+  transform: rotate(180deg);
+}
+
+.cal-cell .c.long {
+  font-size: 12px;
+  letter-spacing: -0.3px;
+}
+
+.tpl-code {
+  width: auto;
+  min-width: 44px;
+  padding: 0 6px;
+  font-size: 15px;
+}

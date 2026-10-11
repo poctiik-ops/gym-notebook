@@ -3,7 +3,7 @@
  * При изменении любого файла увеличьте VERSION: телефон скачает новую версию в фоне
  * и применит её сам (см. registerServiceWorker в js/app.js).
  */
-const VERSION = 'v5';
+const VERSION = 'v6';
 const CACHE = `gym-notebook-${VERSION}`;
 
 const ASSETS = [
@@ -13,6 +13,7 @@ const ASSETS = [
   './manifest.webmanifest',
   './js/domain.js',
   './js/seed.js',
+  './js/program-old.js',
   './js/db.js',
   './js/platform.js',
   './js/anatomy.js',

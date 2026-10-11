@@ -8,7 +8,7 @@
 (function (GN) {
   'use strict';
 
-  const SEED_VERSION = 4;
+  const SEED_VERSION = 5;
   const DEFAULT_SCHEME_ID = 'scheme-default';
 
   // Первые WARMUP_ITEMS упражнений каждой тренировки получают WARMUP_SETS разминочных подходов
@@ -239,7 +239,8 @@
       ...meta,
     };
 
-    return { exercises, templates, scheme };
+    const seed = { exercises, templates, scheme, schemes: [scheme], cycles: [] };
+    return GN.extendSeedWithOldProgram ? GN.extendSeedWithOldProgram(seed, now) : seed;
   }
 
   /** Стартовые рабочие веса для демо; null — без отягощения. */

@@ -116,7 +116,7 @@
     });
 
     it('программа А–Е: по 8 упражнений, разминка в первых четырёх', async () => {
-      const templates = await services.listTemplates();
+      const templates = (await services.listTemplates()).filter((t) => !t.code.startsWith('O'));
       const ex = await services.exerciseMap();
       expect(templates.map((t) => t.name)).toEqual([
         'Тренировка А', 'Тренировка Б', 'Тренировка В', 'Тренировка Г', 'Тренировка Д', 'Тренировка Е', 'Light А', 'Light Б',
@@ -166,6 +166,56 @@
       expect(await names()).toBe('Reverse Pec Deck');
       expect(await names()).toBe('Махи гантелями лёжа грудью на наклонной скамье');
       expect(await names()).toBe('Reverse Pec Deck');
+    });
+
+    it('текущий цикл с 28 сентября сменяется новым 2 ноября', async () => {
+      const at = (y, m, d) => {
+        current = new Date(y, m - 1, d, 10, 0);
+      };
+      at(2026, 10, 12);
+      let { cycle, scheme, upcoming } = await services.getActiveCycleWithScheme();
+      expect(cycle.startDate).toBe('2026-09-28');
+      expect(upcoming.startDate).toBe('2026-11-02');
+      expect(GN.getTodayPlan(cycle, scheme, current).planned.templateCode).toBe('O1'); // Д1 (второй круг — Д15)
+      at(2026, 10, 23);
+      expect(GN.getTodayPlan(cycle, scheme, current).planned.templateCode).toBe('O6'); // Д26 = Д12
+      at(2026, 10, 27);
+      expect(GN.getTodayPlan(cycle, scheme, current).planned.templateCode).toBe('OLA');
+      at(2026, 10, 29);
+      expect(GN.getTodayPlan(cycle, scheme, current).planned.templateCode).toBe('OLB');
+      expect(GN.getCycleEndDate(cycle.startDate, scheme)).toBe('2026-11-01');
+
+      at(2026, 11, 2);
+      ({ cycle, scheme, upcoming } = await services.getActiveCycleWithScheme());
+      expect(cycle.startDate).toBe('2026-11-02');
+      expect(upcoming).toBeNull();
+      expect(GN.getTodayPlan(cycle, scheme, current).planned.templateCode).toBe('A');
+
+      // тренировка старого цикла: 7 упражнений, разминка у упражнений с 3 рабочими подходами
+      at(2026, 10, 12);
+      const s = await services.startWorkout('O1');
+      expect(s.cycleId).toBe('cycle-2026-09-28');
+      expect(s.cycleWeek).toBe(3);
+      expect(s.exercises.map((e) => e.snapshot.warmupSets)).toEqual([2, 2, 0, 2, 0, 0, 0]);
+      expect(s.exercises[0].snapshot.name).toBe('Тяга верхнего блока параллельным хватом');
+    });
+
+    it('запись прошедшей тренировки задним числом', async () => {
+      // сегодня 12 октября; сначала записали сегодняшнюю Д1, потом вспомнили про 28 сентября
+      const today = await services.startWorkout('O1');
+      await services.mutate(today.id, (x, now) => GN.completeSet(x, 0, 2, { weight: 50, value: 8 }, now));
+      await services.mutate(today.id, (x, now) => GN.finishSession(x, now));
+      advance(600);
+      const past = await services.startWorkout('O1', '2026-09-28');
+      expect(past).toMatchObject({ plannedDate: '2026-09-28', cycleWeek: 1, cycleId: 'cycle-2026-09-28' });
+      // для прошлой тренировки «Прошлый раз» не берёт более позднюю
+      expect(await services.getPreviousPerformance(past.exercises[0].exerciseId, past.templateId, past.id, past.plannedDate)).toBeNull();
+      await services.mutate(past.id, (x, now) => GN.completeSet(x, 0, 2, { weight: 45, value: 8 }, now));
+      await services.mutate(past.id, (x, now) => GN.finishSession(x, now));
+      // история — по дате тренировки: 12 октября выше 28 сентября
+      expect((await services.listCompleted()).map((x) => x.plannedDate)).toEqual(['2026-10-12', '2026-09-28']);
+      const next = await services.getPreviousPerformance(past.exercises[0].exerciseId, past.templateId, null, '2026-10-14');
+      expect(next.plannedDate).toBe('2026-10-12');
     });
 
     it('новый цикл завершает предыдущий', async () => {

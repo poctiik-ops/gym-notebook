@@ -112,14 +112,20 @@
       async render() {
         const today = new Date();
         const todayIso = GN.toISODate(today);
-        const [{ cycle, scheme }, templates, exercises, inProgress, todaySessions] = await Promise.all([
+        const [{ cycle, scheme, upcoming, upcomingScheme }, templates, exercises, inProgress, todaySessions] = await Promise.all([
           services.getActiveCycleWithScheme(),
           services.listTemplates(),
           services.exerciseMap(),
           services.getInProgress(),
           services.listByDate(todayIso),
         ]);
-        const plan = GN.getTodayPlan(cycle, scheme, today);
+        let plan = GN.getTodayPlan(cycle, scheme, today);
+        // Следующий цикл уже запланирован — «следующая тренировка» берётся из него
+        const upcomingFirst =
+          upcoming && upcomingScheme
+            ? { ...GN.getPlannedWorkouts(upcoming.startDate, upcomingScheme)[0], cycleStart: upcoming.startDate }
+            : null;
+        if (upcomingFirst && (plan.kind === 'rest' || plan.kind === 'workout') && !plan.next) plan = { ...plan, next: upcomingFirst };
         const byCode = new Map(templates.map((t) => [t.code, t]));
 
         let body = '';
@@ -137,6 +143,14 @@
             body = cycleCard(plan.position) + nextLine(plan.next);
             break;
           case 'finished':
+            if (upcomingFirst) {
+              body = `${cycleCard(plan.position)}
+                <section class="card">
+                  <h2 class="display">Цикл завершён</h2>
+                  <p class="muted" style="margin-top:8px">Новый цикл начнётся ${esc(GN.formatWeekdayDate(upcoming.startDate))}.</p>
+                </section>${nextLine(upcomingFirst)}`;
+              break;
+            }
             body = `${cycleCard(plan.position)}
               <section class="card">
                 <h2 class="title" style="margin-bottom:8px">Цикл завершён</h2>

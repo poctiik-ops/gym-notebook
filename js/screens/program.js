@@ -19,12 +19,12 @@
             const code = d.workout.templateCode;
             const isDone = done.has(`${d.date}|${code}`);
             const isPast = d.date < todayIso;
-            const status = isDone ? 'выполнена' : isPast ? 'пропущена' : isToday ? 'сегодня' : 'запланирована';
+            const status = isDone ? 'выполнена' : isPast ? 'не записана' : isToday ? 'сегодня' : 'запланирована';
             const cls = ['cal-cell', 'workout', isToday && 'today', isDone && 'done', isPast && !isDone && 'missed', GN.isLightTemplate(code) && 'light']
               .filter(Boolean)
               .join(' ');
-            return `<a href="#/program/${code}" role="cell" class="${cls}" aria-label="${esc(GN.formatWeekdayDate(d.date))}: ${esc(GN.templateTitle(code))}, ${status}">
-              <span class="d">${dayNum}</span><span class="c">${isDone ? '✓' : GN.templateLetter(code)}</span></a>`;
+            return `<a href="#/program/${code}/${d.date}" role="cell" class="${cls}" aria-label="${esc(GN.formatWeekdayDate(d.date))}: ${esc(GN.templateTitle(code))}, ${status}">
+              <span class="d">${dayNum}</span><span class="c${GN.templateLetter(code).length > 2 ? ' long' : ''}">${isDone ? '✓' : GN.templateLetter(code)}</span></a>`;
           })
           .join('');
         return `<div class="cal-row${w.isDeload ? ' deload' : ''}" role="row">
@@ -34,7 +34,7 @@
     return `<div class="cal" role="table" aria-label="Календарь цикла">
       <div class="cal-row" role="row"><span class="cal-week" role="columnheader" aria-label="Неделя"></span>${head}</div>
       ${rows}
-      <p class="cal-legend"><span>✓ выполнена</span><span><i></i> сегодня</span><span>Пунктир — пропущена</span><span>LА / LБ — лёгкие</span></p>
+      <p class="cal-legend"><span>✓ выполнена</span><span><i></i> сегодня</span><span>Пунктир — не записана, нажмите, чтобы внести</span><span>L, Д.А, Д.Б — лёгкие</span></p>
     </div>`;
   }
 
@@ -46,7 +46,7 @@
     return {
       async render() {
         const today = new Date();
-        const [{ cycle, scheme }, templates, exercises] = await Promise.all([
+        const [{ cycle, scheme, upcoming, upcomingScheme }, templates, exercises] = await Promise.all([
           services.getActiveCycleWithScheme(),
           services.listTemplates(),
           services.exerciseMap(),
@@ -59,6 +59,7 @@
           const p = GN.getCyclePosition(cycle.startDate, scheme, today);
           const now = p.status === 'active' ? `Неделя ${p.week}` : p.status === 'not_started' ? 'Не начат' : 'Завершён';
           cycleBlock = `<section class="card" aria-label="Текущий цикл">
+            <p class="cycle-name">${esc(upcoming ? 'Текущий цикл' : 'Цикл')} · ${esc(scheme.name)}</p>
             <dl class="cycle-dates">
               <div><dt>Начало</dt><dd>${esc(GN.formatDayMonthShort(cycle.startDate))}</dd></div>
               <div><dt>Окончание</dt><dd>${esc(GN.formatDayMonthShort(GN.getCycleEndDate(cycle.startDate, scheme)))}</dd></div>
@@ -66,6 +67,16 @@
             </dl>
             ${calendar(cycle.startDate, scheme, GN.toISODate(today), sessions)}
           </section>`;
+          if (upcoming && upcomingScheme) {
+            cycleBlock += `<details class="card upcoming">
+              <summary>
+                <span><span class="cycle-name">Следующий цикл · ${esc(upcomingScheme.name)}</span>
+                <strong>${esc(GN.formatDayMonth(upcoming.startDate))} — ${esc(GN.formatDayMonth(GN.getCycleEndDate(upcoming.startDate, upcomingScheme)))}</strong></span>
+                ${icon('chevronDown')}
+              </summary>
+              ${calendar(upcoming.startDate, upcomingScheme, GN.toISODate(today), [])}
+            </details>`;
+          }
         } else {
           cycleBlock = `<section class="card-flat">
             <p class="title">Цикл не начат</p>
@@ -74,7 +85,21 @@
           </section>`;
         }
 
-        const list = templates
+        const codesOf = (sch) => new Set(sch ? sch.slots.map((x) => x.templateCode) : []);
+        const groups = [];
+        if (upcoming && upcomingScheme) {
+          const cur = codesOf(scheme);
+          const next = codesOf(upcomingScheme);
+          groups.push([`Текущий цикл · до ${GN.formatDayMonth(GN.getCycleEndDate(cycle.startDate, scheme))}`, templates.filter((t) => cur.has(t.code))]);
+          groups.push([`Новый цикл · с ${GN.formatDayMonth(upcoming.startDate)}`, templates.filter((t) => next.has(t.code))]);
+        } else {
+          const cur = codesOf(scheme);
+          const mine = cur.size ? templates.filter((t) => cur.has(t.code)) : templates;
+          const rest = templates.filter((t) => !mine.includes(t));
+          groups.push(['Тренировки', mine]);
+          if (rest.length) groups.push(['Другие тренировки', rest]);
+        }
+        const renderList = (list) => list
           .map((t) => {
             const names = t.items
               .slice(0, 2)
@@ -92,8 +117,10 @@
 
         return `${header}<div class="stack">
           ${cycleBlock}
-          <h2 class="section-title">Тренировки</h2>
-          <ul class="tpl-list">${list}</ul>
+          ${groups
+            .filter(([, list]) => list.length)
+            .map(([title, list]) => `<h2 class="section-title">${esc(title)}</h2><ul class="tpl-list">${renderList(list)}</ul>`)
+            .join('')}
           ${button('Редактировать программу', { variant: 'secondary', block: true, icon: 'edit', attrs: 'data-action="edit"' })}
         </div>`;
       },
@@ -108,15 +135,19 @@
   GN.screens.template = function (ctx) {
     const { services } = ctx;
     const code = ctx.params.code;
+    const date = ctx.params.date || null; // день из календаря — для записи задним числом
     let template = null;
     return {
       async render() {
         const back = iconButton('chevronLeft', 'Назад', 'data-action="back"');
-        const [t, exercises, inProgress] = await Promise.all([
+        const [t, exercises, inProgress, onDate] = await Promise.all([
           GN.TEMPLATE_CODES.includes(code) ? services.getTemplate(code) : null,
           services.exerciseMap(),
           services.getInProgress(),
+          date ? services.listByDate(date) : [],
         ]);
+        const todayIso = GN.toISODate(new Date());
+        const doneOnDate = onDate.find((s) => s.status === 'completed' && s.templateCode === code);
         template = t;
         if (!template) return `${screenHeader({ leading: back, title: 'Не найдено' })}<p class="muted">Такой тренировки нет в программе.</p>`;
 
@@ -134,22 +165,32 @@
           })
           .join('');
 
-        const action = inProgress
-          ? button(`Продолжить: ${esc(inProgress.templateName)}`, { variant: 'secondary', size: 'lg', block: true, attrs: `data-action="resume" data-id="${esc(inProgress.id)}"` })
-          : button('Начать эту тренировку сегодня', { variant: 'secondary', size: 'lg', block: true, icon: 'play', attrs: 'data-action="start"' });
+        let action;
+        let note = 'Например, если пропустили тренировку по расписанию.';
+        if (inProgress) {
+          action = button(`Продолжить: ${esc(inProgress.templateName)}`, { variant: 'secondary', size: 'lg', block: true, attrs: `data-action="resume" data-id="${esc(inProgress.id)}"` });
+        } else if (doneOnDate) {
+          action = button(`Посмотреть запись за ${esc(GN.formatDayMonth(date))}`, { variant: 'secondary', size: 'lg', block: true, attrs: `data-action="resume" data-id="${esc(doneOnDate.id)}"` });
+          note = '';
+        } else if (date && date < todayIso) {
+          action = button(`Записать за ${esc(GN.formatWeekdayDate(date))}`, { size: 'lg', block: true, icon: 'edit', attrs: `data-action="start" data-date="${date}"` });
+          note = 'Внесите веса и повторы, которые делали в тот день. Тренировка отметится в календаре.';
+        } else {
+          action = button('Начать эту тренировку сегодня', { variant: date === todayIso ? 'primary' : 'secondary', size: 'lg', block: true, icon: 'play', attrs: 'data-action="start"' });
+        }
 
         return `${screenHeader({ leading: back, eyebrow: GN.exercisesLabel(template.items.length), title: esc(template.name) })}
           <div class="stack">
             <section class="card"><ul class="tpl-rows">${rows}</ul></section>
             ${action}
-            <p class="muted small center">Например, если пропустили тренировку по расписанию.</p>
+            ${note ? `<p class="muted small center">${note}</p>` : ''}
           </div>`;
       },
       actions: {
         back: () => history.back(),
         resume: (el) => ctx.go(`/workout/${el.dataset.id}`),
-        async start() {
-          const s = await services.startWorkout(template.code, GN.toISODate(new Date()));
+        async start(el) {
+          const s = await services.startWorkout(template.code, el.dataset.date || GN.toISODate(new Date()));
           ctx.go(`/workout/${s.id}`);
         },
       },

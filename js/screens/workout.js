@@ -345,7 +345,7 @@
 
         if (!previous) {
           const list = await Promise.all(
-            session.exercises.map((e) => services.getPreviousPerformance(e.exerciseId, session.templateId, session.id)),
+            session.exercises.map((e) => services.getPreviousPerformance(e.exerciseId, session.templateId, session.id, session.plannedDate)),
           );
           previous = new Map(list.map((p, i) => [i, p]));
         }
@@ -356,7 +356,7 @@
             ${iconButton('chevronLeft', 'К экрану «Сегодня»', 'data-action="back"')}
             <div style="min-width:0">
               <p class="t">${esc(session.templateName)}</p>
-              <p class="m">${session.cycleWeek ? `Неделя ${session.cycleWeek} · ` : ''}${c.done} / ${c.total} ${GN.plural(c.total, ['подход', 'подхода', 'подходов'])}</p>
+              <p class="m">${session.plannedDate !== GN.toISODate(new Date()) ? `${esc(GN.formatWeekdayDate(session.plannedDate))} · ` : ''}${session.cycleWeek ? `Неделя ${session.cycleWeek} · ` : ''}${c.done} / ${c.total} ${GN.plural(c.total, ['подход', 'подхода', 'подходов'])}</p>
             </div>
           </header>
           <div class="workout-progress">${progressBar(c.total ? c.done / c.total : 0, 'Выполнено подходов')}</div>
