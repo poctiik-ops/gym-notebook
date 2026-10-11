@@ -96,6 +96,10 @@
   /** Пользовательские фото (kind: custom) подгружаются после рендера — см. hydrateImages в app.js. */
   function exerciseImage(image, { compact = false, extra = '' } = {}) {
     const cls = compact ? 'ex-image compact' : 'ex-image';
+    if (image && image.kind === 'muscles') {
+      const chip = !compact && image.equipment ? `<span class="pill equip">${esc(image.equipment)}</span>` : '';
+      return `<div class="${cls} muscles">${GN.anatomy.muscleMap(image, { compact })}${chip}${extra}</div>`;
+    }
     if (image && image.kind === 'custom') {
       return `<div class="${cls}" data-image-asset="${esc(image.assetId)}">${glyph('core')}${extra}</div>`;
     }

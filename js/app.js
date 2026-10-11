@@ -105,32 +105,54 @@
     navigate();
   }
 
-  // ── Service worker: офлайн. Новая версия применяется только по кнопке «Обновить». ──
+  // ── Service worker: офлайн и автообновление ──
+  // Новая версия скачивается в фоне и включается сама. Перезагрузка — сразу,
+  // а если открыта тренировка — когда приложение свернут (ввод не прервётся).
   function registerServiceWorker() {
     if (!('serviceWorker' in navigator) || !/^https?:$/.test(location.protocol)) return;
+
+    const onWorkout = () => /^#\/workout\//.test(location.hash);
+    let pendingReload = false;
+    const reloadNow = () => {
+      try {
+        sessionStorage.setItem('just-updated', '1');
+      } catch (e) {
+        /* не критично */
+      }
+      location.reload();
+    };
+    const reloadWhenSafe = () => {
+      if (!onWorkout() || document.visibilityState === 'hidden') return reloadNow();
+      pendingReload = true;
+    };
+    document.addEventListener('visibilitychange', () => {
+      if (pendingReload && document.visibilityState === 'hidden') reloadNow();
+    });
+    window.addEventListener('hashchange', () => {
+      if (pendingReload && !onWorkout()) reloadNow();
+    });
+
     window.addEventListener('load', async () => {
       try {
-        const reg = await navigator.serviceWorker.register('sw.js');
-        const offer = (worker) => {
-          const banner = document.getElementById('update-banner');
-          banner.hidden = false;
-          banner.querySelector('[data-update]').onclick = () => worker.postMessage('SKIP_WAITING');
-          banner.querySelector('[data-later]').onclick = () => (banner.hidden = true);
-        };
-        if (reg.waiting && navigator.serviceWorker.controller) offer(reg.waiting);
-        reg.addEventListener('updatefound', () => {
-          const w = reg.installing;
-          if (!w) return;
-          w.addEventListener('statechange', () => {
-            if (w.state === 'installed' && navigator.serviceWorker.controller) offer(w);
-          });
-        });
+        let hadController = !!navigator.serviceWorker.controller;
+        const reg = await navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' });
         let reloaded = false;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
+          // Первое подключение после установки — страница уже свежая, перезагружать нечего
+          if (!hadController) {
+            hadController = true;
+            return;
+          }
           if (reloaded) return;
           reloaded = true;
-          location.reload();
+          reloadWhenSafe();
         });
+        // Совместимость с версией, которая ждала кнопку «Обновить»
+        if (reg.waiting) reg.waiting.postMessage('SKIP_WAITING');
+        // Проверяем обновления при каждом открытии приложения и раз в 30 минут
+        const check = () => reg.update().catch(() => {});
+        document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && check());
+        setInterval(check, 30 * 60 * 1000);
       } catch (e) {
         console.warn('Service worker не зарегистрирован', e);
       }
@@ -145,7 +167,17 @@
       const services = GN.createServices(GN.createRepositories(db));
       await services.ensureSeeded();
       GN.services = services; // для отладки в консоли
+      // Просим систему не удалять данные приложения при нехватке места
+      GN.requestPersistentStorage();
       startApp(services);
+      try {
+        if (sessionStorage.getItem('just-updated')) {
+          sessionStorage.removeItem('just-updated');
+          setTimeout(() => GN.ui.toast('Приложение обновлено'), 600);
+        }
+      } catch (e) {
+        /* не критично */
+      }
     } catch (e) {
       console.error(e);
       document.getElementById('app').innerHTML = `<div class="empty">

@@ -8,7 +8,7 @@
 (function (GN) {
   'use strict';
 
-  const SEED_VERSION = 2;
+  const SEED_VERSION = 3;
   const DEFAULT_SCHEME_ID = 'scheme-default';
 
   // Первые WARMUP_ITEMS упражнений каждой тренировки получают WARMUP_SETS разминочных подходов
@@ -50,6 +50,45 @@
     ['weighted-side-plank', 'Боковая планка с весом', 'Косые мышцы пресса', 'core', 60, 'Таз высоко, корпус одной линией. Вес — на бедре.', 'seconds', 'side'],
     ['ab-wheel', 'Ролик для пресса', 'Пресс', 'core', 90, 'Поясница не прогибается, катитесь настолько, насколько держите корпус.', 'reps'],
   ];
+
+  /**
+   * Схема мышц и оборудование: [основные, вспомогательные, оборудование].
+   * Названия мышц — ключи из js/anatomy.js.
+   */
+  const MUSCLES = {
+    'one-arm-lat-pulldown': [['lats'], ['biceps', 'rearDelts'], 'Блок'],
+    'wide-neutral-pulldown': [['lats'], ['biceps', 'traps'], 'Блок'],
+    'one-arm-cable-row-hip': [['lats'], ['rearDelts', 'biceps'], 'Блок'],
+    'one-arm-db-row': [['lats'], ['rearDelts', 'biceps'], 'Гантель'],
+    'cable-pullover': [['lats'], ['triceps'], 'Блок'],
+    'wide-upright-row': [['traps', 'midDelts'], ['rearDelts'], 'Штанга'],
+    'smith-shrug': [['traps'], ['forearms'], 'Смит'],
+    'db-shrug': [['traps'], ['forearms'], 'Гантели'],
+    'smith-incline-press': [['upperChest'], ['frontDelts', 'triceps'], 'Смит'],
+    'incline-db-press': [['upperChest'], ['frontDelts', 'triceps'], 'Гантели'],
+    'db-squeeze-press': [['chest', 'upperChest'], ['triceps', 'frontDelts'], 'Гантели'],
+    'cable-crossover-mid': [['chest'], ['frontDelts'], 'Кроссовер'],
+    'cable-lateral-raise': [['midDelts'], ['traps'], 'Блок'],
+    'db-lateral-raise': [['midDelts'], ['traps'], 'Гантели'],
+    'reverse-pec-deck': [['rearDelts'], ['traps'], 'Тренажёр'],
+    'leg-extension': [['quads'], [], 'Тренажёр'],
+    'leg-press': [['quads', 'glutes'], ['adductors', 'hamstrings'], 'Тренажёр'],
+    'hack-squat': [['quads'], ['glutes', 'adductors'], 'Тренажёр'],
+    'hip-adduction': [['adductors'], [], 'Тренажёр'],
+    'db-romanian-deadlift': [['hamstrings', 'glutes'], ['lowerBack', 'forearms'], 'Гантели'],
+    'barbell-curl': [['biceps'], ['forearms'], 'Штанга'],
+    'db-hammer-curl': [['biceps', 'forearms'], [], 'Гантели'],
+    'incline-db-curl': [['biceps'], ['forearms'], 'Гантели'],
+    'db-spider-curl': [['biceps'], ['forearms'], 'Гантели'],
+    'straight-bar-pushdown': [['triceps'], [], 'Блок'],
+    'ez-skull-crusher': [['triceps'], [], 'EZ-гриф'],
+    'smith-close-press': [['triceps'], ['chest', 'frontDelts'], 'Смит'],
+    'one-arm-d-pushdown': [['triceps'], [], 'Блок'],
+    'machine-crunch': [['abs'], ['obliques'], 'Тренажёр'],
+    'hanging-knee-raise': [['abs'], ['obliques', 'forearms'], 'Турник'],
+    'weighted-side-plank': [['obliques'], ['abs', 'midDelts'], 'Блин'],
+    'ab-wheel': [['abs'], ['obliques', 'lats'], 'Ролик'],
+  };
 
   // [упражнение, подходы, повторы от, повторы до, отдых от (с), отдых до (с)]
   const TEMPLATES = {
@@ -112,25 +151,32 @@
       ['machine-crunch', 3, 10, 15, 60, 90],
     ],
   };
-  // Разгрузочная неделя: упражнения А и Б, по 2 рабочих подхода
-  TEMPLATES.LA = TEMPLATES.A.map(([id, , min, max, rmin, rmax]) => [id, 2, min, max, rmin, rmax]);
-  TEMPLATES.LB = TEMPLATES.B.map(([id, , min, max, rmin, rmax]) => [id, 2, min, max, rmin, rmax]);
+  // Разгрузочная неделя: упражнения А и Б, по 4 рабочих подхода, без разминки
+  const LIGHT_SETS = 4;
+  const NO_WARMUP = new Set(['LA', 'LB']);
+  TEMPLATES.LA = TEMPLATES.A.map(([id, , min, max, rmin, rmax]) => [id, LIGHT_SETS, min, max, rmin, rmax]);
+  TEMPLATES.LB = TEMPLATES.B.map(([id, , min, max, rmin, rmax]) => [id, LIGHT_SETS, min, max, rmin, rmax]);
 
   function buildSeed(now) {
     const ts = now.toISOString();
     const meta = { createdAt: ts, updatedAt: ts, deletedAt: null };
 
-    const exercises = EXERCISES.map(([id, name, muscleGroup, imageKey, rest, instruction, type, perSide]) => ({
-      id: `ex-${id}`,
-      name,
-      muscleGroup,
-      instruction,
-      defaultRestSeconds: rest,
-      resultType: type || 'reps',
-      perSide: perSide || null,
-      image: { kind: 'builtin', key: imageKey },
-      ...meta,
-    }));
+    const exercises = EXERCISES.map(([id, name, muscleGroup, imageKey, rest, instruction, type, perSide]) => {
+      const m = MUSCLES[id];
+      return {
+        id: `ex-${id}`,
+        name,
+        muscleGroup,
+        instruction,
+        defaultRestSeconds: rest,
+        resultType: type || 'reps',
+        perSide: perSide || null,
+        image: m
+          ? { kind: 'muscles', primary: m[0], secondary: m[1], equipment: m[2] }
+          : { kind: 'builtin', key: imageKey },
+        ...meta,
+      };
+    });
     const known = new Set(exercises.map((e) => e.id));
 
     const templates = Object.keys(TEMPLATES).map((code) => ({
@@ -144,7 +190,7 @@
           id: `tpl-${code}-${i + 1}`,
           exerciseId,
           sets,
-          warmupSets: i < WARMUP_ITEMS ? WARMUP_SETS : 0,
+          warmupSets: !NO_WARMUP.has(code) && i < WARMUP_ITEMS ? WARMUP_SETS : 0,
           repMin,
           repMax,
           restSeconds: restMax, // таймер — по верхней границе

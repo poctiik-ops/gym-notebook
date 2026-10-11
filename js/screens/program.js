@@ -225,9 +225,9 @@
               <div class="edit-grid">
                 ${stepper({ label: 'Разминка', value: item.warmupSets || 0, min: 0, max: 5, action: 'step', attrs: `${a} data-key="warmupSets" data-step="1"` })}
                 ${stepper({ label: 'Рабочие', value: item.sets, min: 1, max: 10, action: 'step', attrs: `${a} data-key="sets" data-step="1"` })}
-                ${stepper({ label: 'Отдых', value: item.restSeconds, min: 0, max: 600, action: 'step', attrs: `${a} data-key="restSeconds" data-step="15"`, format: GN.formatClock })}
                 ${stepper({ label: sec ? 'Сек. от' : 'Повт. от', value: item.repMin, min: 1, max: sec ? 600 : 100, action: 'step', attrs: `${a} data-key="repMin" data-step="${sec ? 5 : 1}"` })}
                 ${stepper({ label: sec ? 'Сек. до' : 'Повт. до', value: item.repMax, min: 1, max: sec ? 600 : 100, action: 'step', attrs: `${a} data-key="repMax" data-step="${sec ? 5 : 1}"` })}
+                ${stepper({ label: 'Отдых', value: item.restSeconds, min: 0, max: 600, action: 'step', attrs: `${a} data-key="restSeconds" data-step="15"`, format: GN.formatClock })}
               </div>
               <div class="edit-actions">
                 ${iconButton('chevronUp', 'Выше', `data-action="move" data-index="${idx}" data-delta="-1" ${idx === 0 ? 'disabled' : ''}`)}

@@ -127,6 +127,11 @@
       expect(ex.get(a.items[0].exerciseId).name).toBe('Одноручная верхняя тяга в блоке сидя');
       expect(ex.get(a.items[0].exerciseId).perSide).toBe('arm');
       expect(a.items[2]).toMatchObject({ restSeconds: 180, restMinSeconds: 120 });
+      // разгрузочная неделя: 4 рабочих подхода, без разминки
+      const light = templates.filter((t) => t.code === 'LA' || t.code === 'LB');
+      expect(light.every((t) => t.items.every((i) => i.sets === 4 && i.warmupSets === 0))).toBeTrue();
+      // у каждого упражнения есть схема мышц
+      expect([...ex.values()].every((e) => e.image.kind === 'muscles' && e.image.primary.length > 0)).toBeTrue();
     });
 
     it('обновление со старой программы: шаблоны заменяются, история остаётся', async () => {

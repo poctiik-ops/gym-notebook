@@ -1755,3 +1755,24 @@ body.full .nav {
   font-size: 13px;
   font-weight: 600;
 }
+
+/* ═══════════ Схема мышц ═══════════ */
+.ex-image.muscles svg.anatomy {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.ex-image.compact.muscles {
+  background: #f1efe9;
+}
+
+.pill.equip {
+  top: auto;
+  bottom: 12px;
+  left: 12px;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}

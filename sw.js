@@ -1,8 +1,9 @@
 /*
- * Service worker: офлайн-оболочка приложения.
- * При изменении любого файла увеличьте VERSION — иначе телефон продолжит показывать старую версию.
+ * Service worker: офлайн-оболочка приложения и автообновление.
+ * При изменении любого файла увеличьте VERSION: телефон скачает новую версию в фоне
+ * и применит её сам (см. registerServiceWorker в js/app.js).
  */
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE = `gym-notebook-${VERSION}`;
 
 const ASSETS = [
@@ -14,6 +15,7 @@ const ASSETS = [
   './js/seed.js',
   './js/db.js',
   './js/platform.js',
+  './js/anatomy.js',
   './js/ui.js',
   './js/screens/today.js',
   './js/screens/workout.js',
@@ -28,8 +30,14 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
-  // Новая версия ждёт, пока пользователь не нажмёт «Обновить» (не посреди тренировки)
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)));
+  event.waitUntil(
+    caches
+      .open(CACHE)
+      // cache: 'reload' — мимо HTTP-кэша браузера, чтобы не закэшировать старые файлы
+      .then((cache) => cache.addAll(ASSETS.map((url) => new Request(url, { cache: 'reload' }))))
+      // Новая версия включается сразу, без кнопки «Обновить»
+      .then(() => self.skipWaiting()),
+  );
 });
 
 self.addEventListener('message', (event) => {
