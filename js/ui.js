@@ -201,7 +201,7 @@
       <label class="field-label">Дата начала
         <input class="date-input" type="date" name="startDate" value="${selected}" required>
       </label>
-      <p class="muted small">День старта — тренировка A, дальше по расписанию: через день B, ещё через день C.</p>
+      <p class="muted small">День старта — тренировка А, дальше по расписанию: через день Б, ещё через день В.</p>
       <button type="submit" class="btn btn-primary btn-lg btn-block">${esc(submitLabel)}</button>
     </form>`;
   }

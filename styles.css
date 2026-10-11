@@ -1693,3 +1693,65 @@ body.full .nav {
 [hidden] {
   display: none !important;
 }
+
+/* ═══════════ Разминка ═══════════ */
+.ex-note {
+  margin-top: -4px;
+  font-size: 15px;
+  color: var(--text-2);
+}
+
+.ex-note.warm {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fbf6ea;
+  color: #6b5426;
+}
+
+.set.is-warmup .set-title::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: #c9a24a;
+  vertical-align: 2px;
+}
+
+.set.is-warmup .set-title {
+  color: #6b5426;
+}
+
+.sets-divider {
+  padding: 16px 0 4px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.sets-divider + .set {
+  border-top: 0;
+  padding-top: 8px;
+}
+
+.prev-warmup {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  font-size: 15px;
+  color: var(--text-2);
+}
+
+.warm-tag {
+  margin-right: 4px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: #fbf6ea;
+  color: #6b5426;
+  font-size: 13px;
+  font-weight: 600;
+}

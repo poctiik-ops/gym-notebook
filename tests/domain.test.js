@@ -181,6 +181,30 @@
     });
   });
 
+  describe('Разминочные подходы', () => {
+    const tplW = { ...templateA, items: templateA.items.map((i, k) => ({ ...i, warmupSets: k === 0 ? 2 : 0 })) };
+    const fresh = () => GN.createSessionFromTemplate({ id: 'w', template: tplW, exercises, cycle: null, plannedDate: '2026-10-12', cycleWeek: null, now });
+
+    it('сначала разминка, затем рабочие подходы', () => {
+      const s = fresh();
+      expect(s.exercises[0].sets.map((x) => x.warmup)).toEqual([true, true, false, false, false]);
+      expect(s.exercises[0].snapshot.warmupSets).toBe(2);
+      expect(GN.kindIndex(s.exercises[0], s.exercises[0].sets[3])).toBe(1);
+    });
+    it('после разминки отдых короче (60 с)', () => {
+      const s = GN.completeSet(fresh(), 0, 0, { weight: 20, value: 12 }, now);
+      expect(s.restTimer.durationSeconds).toBe(60);
+    });
+    it('разминка не входит в объём и счётчики, тренировку можно завершить без неё', () => {
+      let s = fresh();
+      s = GN.completeSet(s, 0, 0, { weight: 20, value: 12 }, now);
+      expect(GN.sessionVolume(s)).toBe(0);
+      expect(GN.sessionSetCounts(s)).toEqual({ done: 0, total: 8 });
+      s.exercises.forEach((e, ei) => e.sets.forEach((x, si) => { if (!x.warmup) s = GN.completeSet(s, ei, si, { weight: 50, value: 8 }, now); }));
+      expect(GN.isSessionFullyDone(s)).toBeTrue();
+    });
+  });
+
   // ── «Прошлый раз» ──
   function doneSession(id, template, date, results, status = 'completed') {
     const start = new Date(`${date}T15:00:00.000Z`);
@@ -235,6 +259,11 @@
       expect(GN.parseDecimal('-5')).toBeUndefined();
       expect(GN.parseInteger('8')).toBe(8);
       expect(GN.parseInteger('8,5')).toBeUndefined();
+    });
+    it('отдых диапазоном', () => {
+      expect(GN.formatRest(180)).toBe('3 мин');
+      expect(GN.formatRest(180, 120)).toBe('2–3 мин');
+      expect(GN.formatRest(90, 60)).toBe('1–1,5 мин');
     });
     it('время, подход, склонения', () => {
       expect(GN.formatClock(90)).toBe('1:30');

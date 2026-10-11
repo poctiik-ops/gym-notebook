@@ -2,7 +2,7 @@
  * Service worker: офлайн-оболочка приложения.
  * При изменении любого файла увеличьте VERSION — иначе телефон продолжит показывать старую версию.
  */
-const VERSION = 'v1';
+const VERSION = 'v2';
 const CACHE = `gym-notebook-${VERSION}`;
 
 const ASSETS = [

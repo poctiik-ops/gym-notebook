@@ -24,7 +24,7 @@
               .filter(Boolean)
               .join(' ');
             return `<a href="#/program/${code}" role="cell" class="${cls}" aria-label="${esc(GN.formatWeekdayDate(d.date))}: ${esc(GN.templateTitle(code))}, ${status}">
-              <span class="d">${dayNum}</span><span class="c">${isDone ? '✓' : code}</span></a>`;
+              <span class="d">${dayNum}</span><span class="c">${isDone ? '✓' : GN.templateLetter(code)}</span></a>`;
           })
           .join('');
         return `<div class="cal-row${w.isDeload ? ' deload' : ''}" role="row">
@@ -34,7 +34,7 @@
     return `<div class="cal" role="table" aria-label="Календарь цикла">
       <div class="cal-row" role="row"><span class="cal-week" role="columnheader" aria-label="Неделя"></span>${head}</div>
       ${rows}
-      <p class="cal-legend"><span>✓ выполнена</span><span><i></i> сегодня</span><span>Пунктир — пропущена</span><span>LA / LB — лёгкие</span></p>
+      <p class="cal-legend"><span>✓ выполнена</span><span><i></i> сегодня</span><span>Пунктир — пропущена</span><span>LА / LБ — лёгкие</span></p>
     </div>`;
   }
 
@@ -82,7 +82,7 @@
               .filter(Boolean)
               .join(', ');
             return `<li><a href="#/program/${t.code}" class="tpl-link">
-              <span class="tpl-code" aria-hidden="true">${t.code}</span>
+              <span class="tpl-code" aria-hidden="true">${GN.templateLetter(t.code)}</span>
               <span class="tpl-text"><span class="n">${esc(t.name)}</span>
                 <span class="m">${GN.exercisesLabel(t.items.length)} · ${esc(names)}${t.items.length > 2 ? '…' : ''}</span></span>
               ${icon('chevronRight')}
@@ -126,7 +126,7 @@
             return `<li class="tpl-row">${exerciseImage(ex ? ex.image : null, { compact: true })}
               <div style="min-width:0">
                 <p class="n"><span class="i">${i + 1}</span>${esc(ex ? ex.name : 'Неизвестное упражнение')}</p>
-                <p class="m">${item.sets} × ${GN.formatRepRange(item.repMin, item.repMax)}${ex && ex.resultType === 'seconds' ? ' с' : ''} · отдых ${GN.formatClock(item.restSeconds)}</p>
+                <p class="m">${item.warmupSets ? `${item.warmupSets} разм. + ` : ''}${item.sets} × ${GN.formatRepRange(item.repMin, item.repMax)}${ex && ex.resultType === 'seconds' ? ' с' : ''}${ex && ex.perSide ? ` ${GN.perSideLabel(ex.perSide)}` : ''} · отдых ${GN.formatRest(item.restSeconds, item.restMinSeconds)}</p>
                 ${ex ? `<p class="g">${esc(ex.muscleGroup)}</p>` : ''}
               </div></li>`;
           })
@@ -205,7 +205,7 @@
         const tabs = drafts
           .map(
             (d) =>
-              `<button type="button" role="tab" class="tab" aria-selected="${d.code === active}" data-action="tab" data-code="${d.code}">${d.code}${
+              `<button type="button" role="tab" class="tab" aria-selected="${d.code === active}" data-action="tab" data-code="${d.code}">${GN.templateLetter(d.code)}${
                 dirty.has(d.code) ? '<span class="dot" aria-label="изменено"></span>' : ''
               }</button>`,
           )
@@ -223,7 +223,8 @@
                 <p class="muted" style="font-size:14px">${esc(ex ? ex.muscleGroup : '')}</p></div>
               </div>
               <div class="edit-grid">
-                ${stepper({ label: 'Подходы', value: item.sets, min: 1, max: 10, action: 'step', attrs: `${a} data-key="sets" data-step="1"` })}
+                ${stepper({ label: 'Разминка', value: item.warmupSets || 0, min: 0, max: 5, action: 'step', attrs: `${a} data-key="warmupSets" data-step="1"` })}
+                ${stepper({ label: 'Рабочие', value: item.sets, min: 1, max: 10, action: 'step', attrs: `${a} data-key="sets" data-step="1"` })}
                 ${stepper({ label: 'Отдых', value: item.restSeconds, min: 0, max: 600, action: 'step', attrs: `${a} data-key="restSeconds" data-step="15"`, format: GN.formatClock })}
                 ${stepper({ label: sec ? 'Сек. от' : 'Повт. от', value: item.repMin, min: 1, max: sec ? 600 : 100, action: 'step', attrs: `${a} data-key="repMin" data-step="${sec ? 5 : 1}"` })}
                 ${stepper({ label: sec ? 'Сек. до' : 'Повт. до', value: item.repMax, min: 1, max: sec ? 600 : 100, action: 'step', attrs: `${a} data-key="repMax" data-step="${sec ? 5 : 1}"` })}
@@ -265,9 +266,11 @@
           const item = t.items.find((i) => i.id === el.dataset.item);
           const key = el.dataset.key;
           const delta = Number(el.dataset.delta) * Number(el.dataset.step);
-          const limits = { sets: [1, 10], restSeconds: [0, 600], repMin: [1, 600], repMax: [1, 600] }[key];
-          const value = Math.min(limits[1], Math.max(limits[0], item[key] + delta));
+          const limits = { sets: [1, 10], warmupSets: [0, 5], restSeconds: [0, 600], repMin: [1, 600], repMax: [1, 600] }[key];
+          const value = Math.min(limits[1], Math.max(limits[0], (item[key] || 0) + delta));
           const patch = { [key]: value };
+          // Отдых редактируется одним числом — диапазон «от» сбрасываем
+          if (key === 'restSeconds') patch.restMinSeconds = null;
           if (key === 'repMin') patch.repMax = Math.max(value, item.repMax);
           if (key === 'repMax') patch.repMin = Math.min(value, item.repMin);
           change(GN.updateItem(t, item.id, patch));

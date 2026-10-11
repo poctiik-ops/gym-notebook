@@ -105,6 +105,17 @@
     return weight != null ? `${formatNumber(weight)} × ${v}` : `${v} повт.`;
   }
 
+  /** Отдых: 180 → «3 мин», (120, 180) → «2–3 мин», (60, 90) → «1–1,5 мин» */
+  function formatRest(maxSec, minSec) {
+    const m = (sec) => formatNumber(Math.round((sec / 60) * 10) / 10);
+    if (maxSec < 60) return `${maxSec} с`;
+    if (minSec && minSec < maxSec) return `${m(minSec)}–${m(maxSec)} мин`;
+    return `${m(maxSec)} мин`;
+  }
+
+  /** «каждой рукой» / «на каждую сторону» */
+  const perSideLabel = (perSide) => (perSide === 'arm' ? 'каждой рукой' : perSide === 'side' ? 'на каждую сторону' : '');
+
   const formatVolume = (kg) => `${new Intl.NumberFormat('ru-RU').format(Math.round(kg))} кг`;
 
   // ── Расписание ──────────────────────────────────────────
@@ -126,10 +137,14 @@
     return slots;
   }
 
+  // Внутренние коды A–F, на экране — русские буквы, как в бумажном блокноте
+  const LETTERS = { A: 'А', B: 'Б', C: 'В', D: 'Г', E: 'Д', F: 'Е', LA: 'LА', LB: 'LБ' };
+  const templateLetter = (code) => LETTERS[code] || code;
+
   function templateTitle(code) {
-    if (code === 'LA') return 'Light A';
-    if (code === 'LB') return 'Light B';
-    return `Тренировка ${code}`;
+    if (code === 'LA') return 'Light А';
+    if (code === 'LB') return 'Light Б';
+    return `Тренировка ${templateLetter(code)}`;
   }
 
   const isLightTemplate = (code) => code === 'LA' || code === 'LB';
@@ -236,13 +251,23 @@
             instruction: ex.instruction,
             resultType: ex.resultType,
             image: ex.image,
+            perSide: ex.perSide || null,
             sets: item.sets,
+            warmupSets: item.warmupSets || 0,
             repMin: item.repMin,
             repMax: item.repMax,
             restSeconds: item.restSeconds,
+            restMinSeconds: item.restMinSeconds || null,
           }),
         ),
-        sets: Array.from({ length: item.sets }, (_, index) => ({ index, weight: null, value: null, completedAt: null })),
+        // Сначала разминочные подходы (warmup: true), затем рабочие
+        sets: Array.from({ length: (item.warmupSets || 0) + item.sets }, (_, index) => ({
+          index,
+          warmup: index < (item.warmupSets || 0),
+          weight: null,
+          value: null,
+          completedAt: null,
+        })),
         collapsed: false,
       };
     });
@@ -286,7 +311,10 @@
     return touch(mapSet(s, ei, si, (x) => ({ ...x, ...patch })), now);
   }
 
-  const isSessionFullyDone = (s) => s.exercises.every((e) => e.sets.every((x) => x.completedAt != null));
+  const WARMUP_REST_SECONDS = 60;
+
+  /** Тренировка считается выполненной по рабочим подходам; разминку можно пропустить. */
+  const isSessionFullyDone = (s) => s.exercises.every((e) => workingSets(e).every((x) => x.completedAt != null));
 
   /** Отметить подход и запустить отдых: храним момент окончания, а не счётчик. */
   function completeSet(s, ei, si, input, now) {
@@ -294,7 +322,8 @@
     if (input.value == null || input.value <= 0) throw new SessionError('Укажите количество повторений');
     if (input.weight != null && input.weight < 0) throw new SessionError('Вес не может быть отрицательным');
     let next = mapSet(s, ei, si, (x) => ({ ...x, weight: input.weight, value: input.value, completedAt: now.toISOString() }));
-    const rest = next.exercises[ei].snapshot.restSeconds;
+    const fullRest = next.exercises[ei].snapshot.restSeconds;
+    const rest = next.exercises[ei].sets[si].warmup ? Math.min(WARMUP_REST_SECONDS, fullRest) : fullRest;
     next = {
       ...next,
       restTimer:
@@ -343,8 +372,15 @@
     return touch({ ...s, status: 'abandoned', finishedAt: now.toISOString(), restTimer: null }, now);
   }
 
-  const completedSets = (ex) => ex.sets.filter((x) => x.completedAt != null);
-  const isExerciseDone = (ex) => ex.sets.length > 0 && ex.sets.every((x) => x.completedAt != null);
+  // Старые записи без поля warmup считаются рабочими подходами
+  const workingSets = (ex) => ex.sets.filter((x) => !x.warmup);
+  const warmupSets = (ex) => ex.sets.filter((x) => x.warmup);
+  /** Выполненные РАБОЧИЕ подходы — для объёма, итогов и «Прошлого раза». */
+  const completedSets = (ex) => workingSets(ex).filter((x) => x.completedAt != null);
+  const completedWarmups = (ex) => warmupSets(ex).filter((x) => x.completedAt != null);
+  const isExerciseDone = (ex) => workingSets(ex).length > 0 && workingSets(ex).every((x) => x.completedAt != null);
+  /** Номер подхода внутри своей группы: разминка 0,1…; рабочие 0,1,2… */
+  const kindIndex = (ex, set) => (set.warmup ? set.index : set.index - warmupSets(ex).length);
 
   /** Объём = Σ вес × повторы выполненных подходов. Упражнения на время не учитываются. */
   function exerciseVolume(ex) {
@@ -358,7 +394,7 @@
     let done = 0;
     let total = 0;
     s.exercises.forEach((e) => {
-      total += e.sets.length;
+      total += workingSets(e).length;
       done += completedSets(e).length;
     });
     return { done, total };
@@ -382,7 +418,7 @@
     const candidates = sessions
       .filter((s) => s.status === 'completed' && s.finishedAt && s.id !== excludeSessionId)
       .map((s) => {
-        const ex = s.exercises.find((e) => e.exerciseId === exerciseId && completedSets(e).length > 0);
+        const ex = s.exercises.find((e) => e.exerciseId === exerciseId && (completedSets(e).length > 0 || completedWarmups(e).length > 0));
         return ex ? { session: s, exercise: ex } : null;
       })
       .filter(Boolean)
@@ -399,13 +435,15 @@
       sameTemplate: match.session.templateId === templateId,
       resultType: match.exercise.snapshot.resultType,
       sets: completedSets(match.exercise),
+      warmups: completedWarmups(match.exercise),
     };
   }
 
   /** Прошлый подход с тем же номером; если подходов было меньше — последний известный. */
-  function previousSetAt(prev, index) {
-    if (!prev || prev.sets.length === 0) return null;
-    return prev.sets[index] || prev.sets[prev.sets.length - 1];
+  function previousSetAt(prev, index, warmup = false) {
+    const list = prev ? (warmup ? prev.warmups || [] : prev.sets) : [];
+    if (list.length === 0) return null;
+    return list[index] || list[list.length - 1];
   }
 
   // ── Редактирование программы ────────────────────────────
@@ -425,7 +463,19 @@
     const sec = ex.resultType === 'seconds';
     return {
       ...t,
-      items: [...t.items, { id, exerciseId: ex.id, sets: 3, repMin: sec ? 30 : 8, repMax: sec ? 60 : 12, restSeconds: ex.defaultRestSeconds }],
+      items: [
+        ...t.items,
+        {
+          id,
+          exerciseId: ex.id,
+          sets: 3,
+          warmupSets: t.items.length < 4 ? 2 : 0,
+          repMin: sec ? 30 : 8,
+          repMax: sec ? 60 : 12,
+          restSeconds: ex.defaultRestSeconds,
+          restMinSeconds: null,
+        },
+      ],
     };
   }
 
@@ -438,6 +488,7 @@
       if (i.repMin < 1 || i.repMax < 1) errors.push(`${t.name}, №${n}: повторы должны быть больше нуля`);
       if (i.repMin > i.repMax) errors.push(`${t.name}, №${n}: минимум повторов больше максимума`);
       if (i.restSeconds < 0 || i.restSeconds > 600) errors.push(`${t.name}, №${n}: отдых 0–10 минут`);
+      if (i.warmupSets != null && (i.warmupSets < 0 || i.warmupSets > 5)) errors.push(`${t.name}, №${n}: разминка 0–5 подходов`);
     });
     return errors;
   }
@@ -447,6 +498,7 @@
     formatDayMonth, formatDayMonthShort, formatWeekday, formatWeekdayShort, formatWeekdayDate,
     formatNumber, parseDecimal, parseInteger, formatClock, formatDuration, plural, formatRepRange,
     exercisesLabel, formatSet, formatVolume,
+    formatRest, perSideLabel, templateLetter, WARMUP_REST_SECONDS, workingSets, warmupSets, completedWarmups, kindIndex,
     CYCLE_WEEKS, CYCLE_LENGTH_DAYS, DELOAD_WEEK, TEMPLATE_CODES, buildDefaultSlots, templateTitle, isLightTemplate,
     getDayIndex, weekForDayIndex, getCycleEndDate, getCyclePosition, getPlannedWorkouts, getWorkoutForDate,
     getNextWorkout, buildCycleCalendar, getTodayPlan,

@@ -145,8 +145,15 @@
     async function ensureSeeded() {
       const version = await repos.meta.get('seedVersion');
       if (version && version >= GN.SEED_VERSION) return false;
-      const seed = GN.buildSeed(clock.now());
+      const now = clock.now();
+      const seed = GN.buildSeed(now);
+      // Смена программы: упражнения старой версии убираем из справочника (мягко — история хранит свой snapshot)
+      const fresh = new Set(seed.exercises.map((e) => e.id));
+      const retired = (await repos.exercises.list())
+        .filter((e) => !fresh.has(e.id))
+        .map((e) => ({ ...e, deletedAt: now.toISOString(), updatedAt: now.toISOString() }));
       await repos.writeBatch([
+        ...retired.map((value) => ({ store: 'exercises', value })),
         ...seed.exercises.map((value) => ({ store: 'exercises', value })),
         ...seed.templates.map((value) => ({ store: 'templates', value })),
         { store: 'schemes', value: seed.scheme },

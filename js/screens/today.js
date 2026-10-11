@@ -23,7 +23,8 @@
     return `<ol class="ex-list">${template.items
       .map((item) => {
         const ex = exercises.get(item.exerciseId);
-        return `<li><span>${esc(ex ? ex.name : 'Упражнение')}</span><span class="meta">${item.sets} × ${GN.formatRepRange(item.repMin, item.repMax)}${ex && ex.resultType === 'seconds' ? ' с' : ''}</span></li>`;
+        const warm = item.warmupSets ? `<span class="warm-tag">+${item.warmupSets} разм.</span> ` : '';
+        return `<li><span>${esc(ex ? ex.name : 'Упражнение')}</span><span class="meta">${warm}${item.sets} × ${GN.formatRepRange(item.repMin, item.repMax)}${ex && ex.resultType === 'seconds' ? ' с' : ''}</span></li>`;
       })
       .join('')}</ol>`;
   }

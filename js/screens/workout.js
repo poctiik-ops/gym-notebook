@@ -24,7 +24,12 @@
         prev.sameTemplate ? '' : `<span class="other"> · ${esc(prev.templateName)}</span>`
       }</p>
       <p class="weight">${weightLine}</p>
-      <p class="values">${values}${prev.resultType === 'seconds' ? ' с' : ''}</p>
+      <p class="values">${values || '—'}${values && prev.resultType === 'seconds' ? ' с' : ''}</p>
+      ${
+        prev.warmups && prev.warmups.length
+          ? `<p class="prev-warmup">Разминка: ${prev.warmups.map((w) => esc(GN.formatSet(w.weight, w.value, prev.resultType))).join(' · ')}</p>`
+          : ''
+      }
     </section>`;
   }
 
@@ -42,22 +47,33 @@
     </div>`;
   }
 
-  /** Вес по умолчанию: последний отмеченный в этом упражнении сегодня, иначе — из прошлого раза. */
+  /**
+   * Вес по умолчанию: последний отмеченный сегодня подход того же вида (разминка к разминке,
+   * рабочий к рабочему), иначе — из прошлого раза.
+   */
   function defaultWeight(ex, si, prevSet) {
+    const warmup = !!ex.sets[si].warmup;
+    // Разминка идёт «лесенкой» — для неё важнее прошлый раз, чем предыдущий подход
+    if (warmup && prevSet && prevSet.weight != null) return prevSet.weight;
     for (let i = si - 1; i >= 0; i--) {
       const s = ex.sets[i];
-      if (s.completedAt && s.weight != null) return s.weight;
+      if (!!s.warmup === warmup && s.completedAt && s.weight != null) return s.weight;
     }
     return prevSet ? prevSet.weight : null;
   }
 
+  const prevSetFor = (prev, ex, set) => GN.previousSetAt(prev, GN.kindIndex(ex, set), !!set.warmup);
+  const setLabel = (ex, set) => (set.warmup ? `Разминка ${GN.kindIndex(ex, set) + 1}` : `Подход ${GN.kindIndex(ex, set) + 1}`);
+
   function setRow(set, prevSet, ex, ei, showWeight, hasError) {
     const done = set.completedAt != null;
-    const n = set.index + 1;
+    const label = setLabel(ex, set);
     const type = ex.snapshot.resultType;
-    return `<li class="set${done ? ' is-done' : ''}">
+    const firstWork = !set.warmup && set.index > 0 && ex.sets[set.index - 1].warmup;
+    return `${firstWork ? '<li class="sets-divider" aria-hidden="true">Рабочие подходы</li>' : ''}
+    <li class="set${done ? ' is-done' : ''}${set.warmup ? ' is-warmup' : ''}">
       <div class="set-head">
-        <span class="set-title">Подход ${n}${done ? ' <span class="ok" aria-hidden="true">✓</span><span class="sr-only">выполнен</span>' : ''}</span>
+        <span class="set-title">${label}${done ? ' <span class="ok" aria-hidden="true">✓</span><span class="sr-only">выполнен</span>' : ''}</span>
         <span class="set-prev">Прошлый: ${prevSet ? esc(GN.formatSet(prevSet.weight, prevSet.value, type)) : '—'}</span>
       </div>
       <div class="set-inputs${showWeight ? '' : ' no-weight'}">
@@ -78,7 +94,7 @@
           invalid: hasError,
         })}
         <button type="button" class="check" data-action="toggle-set" data-ex="${ei}" data-set="${set.index}"
-          aria-pressed="${done}" aria-label="Подход ${n}: ${done ? 'снять отметку' : 'отметить выполненным'}">
+          aria-pressed="${done}" aria-label="${label}: ${done ? 'снять отметку' : 'отметить выполненным'}">
           ${icon('check', 28, { stroke: done ? 2.6 : 2 })}
         </button>
       </div>
@@ -99,7 +115,8 @@
     const s = ex.snapshot;
     const done = GN.isExerciseDone(ex);
     const doneCount = GN.completedSets(ex).length;
-    const status = `${doneCount} из ${ex.sets.length}`;
+    const workTotal = GN.workingSets(ex).length;
+    const status = `${doneCount} из ${workTotal}`;
     const badgeIcon = done ? icon('check', 16, { stroke: 2.6 }) : '';
 
     if (ex.collapsed) {
@@ -112,9 +129,12 @@
       </article>`;
     }
 
-    const showWeight = s.resultType === 'reps' || ex.sets.some((x) => x.weight != null) || (prev && prev.sets.some((x) => x.weight != null));
+    // Поле веса есть всегда: для упражнений без отягощения его можно оставить пустым
+    const showWeight = true;
     const unitWord = s.resultType === 'seconds' ? 'Секунды' : 'Повторы';
-    const left = ex.sets.length - doneCount;
+    const left = workTotal - doneCount;
+    const warmCount = s.warmupSets || 0;
+    const side = GN.perSideLabel(s.perSide);
 
     return `<article class="ex-card" id="ex-${ei}" aria-labelledby="ex-name-${ei}">
       ${exerciseImage(s.image, {
@@ -126,12 +146,18 @@
         <dl class="ex-stats">
           <div><dt>Подходы</dt><dd>${s.sets}</dd></div>
           <div><dt>${unitWord}</dt><dd>${GN.formatRepRange(s.repMin, s.repMax)}</dd></div>
-          <div><dt>Отдых</dt><dd>${GN.formatClock(s.restSeconds)}</dd></div>
+          <div><dt>Отдых</dt><dd>${GN.formatRest(s.restSeconds, s.restMinSeconds)}</dd></div>
         </dl>
+        ${side ? `<p class="ex-note">${unitWord} — ${side}</p>` : ''}
+        ${
+          warmCount
+            ? `<p class="ex-note warm">+ ${warmCount} ${GN.plural(warmCount, ['разминочный подход', 'разминочных подхода', 'разминочных подходов'])} перед рабочими. Их вес и повторы тоже записываются — в следующий раз увидите их как «Прошлый».</p>`
+            : ''
+        }
         ${s.instruction ? `<details class="hint"><summary>${icon('info', 20)} Техника</summary><p>${esc(s.instruction)}</p></details>` : ''}
         ${previousBlock(prev)}
         <ol class="sets" aria-label="Подходы">
-          ${ex.sets.map((set) => setRow(set, GN.previousSetAt(prev, set.index), ex, ei, showWeight, errors.has(`${ei}:${set.index}`))).join('')}
+          ${ex.sets.map((set) => setRow(set, prevSetFor(prev, ex, set), ex, ei, showWeight, errors.has(`${ei}:${set.index}`))).join('')}
         </ol>
         ${done ? button('Свернуть', { variant: 'secondary', block: true, icon: 'chevronUp', attrs: `data-action="collapse" data-ex="${ei}"` }) : ''}
         ${!done && doneCount > 0 ? `<p class="left-note">Осталось ${left} ${GN.plural(left, ['подход', 'подхода', 'подходов'])}</p>` : ''}
@@ -149,7 +175,9 @@
         const text = sets.length
           ? sets.map((x) => (x.weight != null ? `${GN.formatNumber(x.weight)}×${x.value}` : `${x.value}${unit}`)).join('  ·  ')
           : 'не выполнено';
-        return `<li><strong>${esc(e.snapshot.name)}</strong><span class="r">${esc(text)}</span></li>`;
+        const warm = GN.completedWarmups(e);
+        const warmText = warm.length ? `Разминка: ${warm.map((x) => GN.formatSet(x.weight, x.value, e.snapshot.resultType)).join(' · ')}` : '';
+        return `<li><strong>${esc(e.snapshot.name)}</strong><span class="r">${esc(text)}</span>${warmText ? `<span class="r small">${esc(warmText)}</span>` : ''}</li>`;
       })
       .join('');
     return `${screenHeader({
@@ -173,7 +201,7 @@
   function nextSetHint(s) {
     for (const ex of s.exercises) {
       const set = ex.sets.find((x) => !x.completedAt);
-      if (set) return `${ex.snapshot.name} — подход ${set.index + 1}`;
+      if (set) return `${ex.snapshot.name} — ${setLabel(ex, set).toLowerCase()}`;
     }
     return 'Следующий подход';
   }
@@ -289,7 +317,7 @@
       const row = document.querySelector(`.check[data-ex="${ei}"][data-set="${si}"]`).closest('.set');
       const wIn = row.querySelector('[data-field="weight"]');
       const vIn = row.querySelector('[data-field="value"]');
-      const prevSet = GN.previousSetAt(previous.get(ei), si);
+      const prevSet = prevSetFor(previous.get(ei), ex, set);
       const parsedW = wIn ? GN.parseDecimal(wIn.value) : null;
       const parsedV = GN.parseInteger(vIn.value);
       // Пустое поле = «как в прошлый раз» (значение показано подсказкой)
